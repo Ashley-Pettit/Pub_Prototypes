@@ -847,7 +847,7 @@
       });
     });
     const noteRow = Math.max(lastVar, 1 + rules.length) + 2;
-    ['Yellow cells are inputs. Type a name next to each role.', 'Clear a name and its variable becomes Vacant everywhere on the roster.', 'Variable names (e.g. Senior_1, Analyst_3, Team_Leader) point at column C.', 'Built with Roster Builder. Open this file in the app to change the team, length or rotations.', 'Rapid prototype output, not an endorsed tool. Do not enter council data. For management review as a concept only.']
+    ['Yellow cells are inputs. Type a name next to each role.', 'Clear a name and its variable becomes Vacant everywhere on the roster.', 'Variable names (e.g. Senior_1, Analyst_3, Team_Leader) point at column C.', 'This Excel file is the master copy of the roster. Keep it on the team drive and make day-to-day changes here.', 'To re-plan, change the team, length or rotations, open this file in Roster Builder, then download a new copy to replace this one.', 'Rapid prototype output, not an endorsed tool. Do not enter council data. For management review as a concept only.']
     .forEach((t, k) =>
     {
       const x = su.getCell(noteRow + k, 1);
@@ -1186,7 +1186,7 @@
         size: 9
       })
     });
-    set(3, 1, `Blue = ${E}   Green = ${L}   Grey = RDO   Orange = Leave   Red = needs attention`,
+    set(3, 1, `Master copy of the roster. Blue = ${E}   Green = ${L}   Grey = RDO   Orange = Leave   Red = needs attention`,
     {
       font: font(
       {

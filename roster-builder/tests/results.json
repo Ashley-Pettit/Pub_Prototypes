@@ -1,5 +1,5 @@
 {
- "ran": "2026-11-03T22:32:54.683Z",
+ "ran": "2026-11-03T23:18:43.109Z",
  "results": [
   [
    "T01",
@@ -106,24 +106,6 @@
   [
    "T15",
    "Next roster swaps shifts: each person starts on the other shift",
-   "PASS",
-   ""
-  ],
-  [
-   "T16",
-   "Payroll CSV: one row per person per pay period, totals add to 10 weekdays",
-   "PASS",
-   ""
-  ],
-  [
-   "T17",
-   "CSV cells that start with = + - @ are neutralised (formula injection)",
-   "PASS",
-   ""
-  ],
-  [
-   "T18",
-   "Calendar file has one event per weekday with shift times",
    "PASS",
    ""
   ],

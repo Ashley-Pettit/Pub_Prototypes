@@ -25,7 +25,7 @@ const base = process.argv[2] || 'http://localhost:8765/',
       reducedMotion: 'reduce'
     });
     const p = await ctx.newPage();
-    for (const r of ['roster', 'requests', 'team', 'review', 'settings'])
+    for (const r of ['roster', 'team', 'leave', 'settings'])
     {
       await p.goto(base + '#' + r,
       {
@@ -66,17 +66,6 @@ const base = process.argv[2] || 'http://localhost:8765/',
         path: `${out}/${tag}-${r}.png`,
         fullPage: false
       });
-    }
-    if (tag === 'wide')
-    {
-      await p.goto(base + '#requests');
-      await p.waitForTimeout(200);
-      await p.click('.req .btn-icon >> nth=0');
-      await p.waitForTimeout(150);
-      console.log('dialog focus on:', await p.evaluate(() => document.activeElement.textContent.trim()), '| title:', await p.locator('.dialog h2').innerText());
-      await p.keyboard.press('Escape');
-      await p.waitForTimeout(100);
-      console.log('dialog closed:', await p.locator('.dialog').count() === 0, 'focus restored:', await p.evaluate(() => document.activeElement.getAttribute('aria-label')));
     }
     await ctx.close();
   }

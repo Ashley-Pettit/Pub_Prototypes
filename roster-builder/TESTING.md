@@ -1,29 +1,19 @@
 # Roster Builder: test plan and results
 
-> Rapid prototype, not an endorsed tool. All test data is synthetic (made-up names). The parity fixture stores roles only.
-
-## Scope
-
-Engine calculations, planning, problem detection and fixes, request impact checks, roll forward, exports (CSV, calendar, Excel), and the user interface at phone (375px) and desktop (1280px) widths in light and dark mode.
+> Rapid prototype, not an endorsed tool. All test data is synthetic. The parity fixture stores roles only, no names.
 
 ## Acceptance criteria
 
 | ID | Criterion |
 |---|---|
 | AC1 | Given the original roster's settings, every shift, cover count, rotation and check matches the original spreadsheet. |
-| AC2 | Auto-plan produces a roster with no short days, no rotation clashes and exactly 1 RDO per person per pay period, for 2, 4, 6 and 8 week rosters. |
-| AC3 | Every problem shown has a plain-language reason. Every suggested fix improves the roster. Fix automatically clears all severe problems where a fix exists. |
-| AC4 | Each pending request shows whether approving it is safe before the decision is made. |
-| AC5 | Planning the next roster continues every rotation without a jump and swaps shifts. |
-| AC6 | The Excel workbook recalculates to exactly the values the app shows, and reopens in the app with the same plan, names and swaps. |
-| AC7 | Payroll CSV has one row per person per pay period and cannot inject spreadsheet formulas. |
-| AC8 | No page scrolls sideways at 375px or 1280px; tap targets are at least 44px; text is at least 12px; no more than 3 font weights. |
-| AC9 | Every action works by keyboard. Panels and dialogs trap focus, close with Escape and return focus. Destructive actions name what is deleted and focus Cancel first. |
-| AC10 | Forms validate on leaving a field, clear errors as soon as the field is corrected, and never use a disabled submit button. |
+| AC2 | Re-plan gives no short days, no rotation clashes and 1 RDO per person per pay period, for 2 to 8 week rosters. |
+| AC3 | The downloaded Excel file recalculates to exactly what the app shows, and reopens in the app with the same team, plan, leave and RDO moves. |
+| AC4 | The Excel status bar always shows whether the app matches the last Excel file. |
+| AC5 | No sideways scrolling at 375px or 1280px, tap targets at least 44px, text at least 12px, light and dark mode. |
+| AC6 | Forms validate when leaving a field and never use a disabled submit button. Removing anything asks first, naming what goes, with Cancel focused. |
 
-## Automated results: engine, planner and workbook
-
-Run with `node tests/engine.test.js`. Latest run:
+## Engine, planning and Excel (`node tests/engine.test.js`)
 
 | Test | What it checks | Result |
 |---|---|---|
@@ -45,28 +35,19 @@ Run with `node tests/engine.test.js`. Latest run:
 | T13 | Impact check: safe leave is safe, leave that drops a shift below minimum is not | PASS |
 | T14 | Next roster continues every rotation without a jump | PASS |
 | T15 | Next roster swaps shifts: each person starts on the other shift | PASS |
-| T16 | Payroll CSV: one row per person per pay period, totals add to 10 weekdays | PASS |
-| T17 | CSV cells that start with = + - @ are neutralised (formula injection) | PASS |
-| T18 | Calendar file has one event per weekday with shift times | PASS |
 | T19 | Workbook round trip: reopening gives back the same plan, names and swaps | PASS |
 | T20 | Workbook formulas recalculate to the same values the app shows (LibreOffice) | PASS |
 
-## Automated results: interface
+## Interface
 
 | Test | Evidence | Result |
 |---|---|---|
-| UI1 | `tests/ui.js` loads all 5 pages at 1280 and 375. No console errors, no page-level horizontal scroll. | PASS |
-| UI2 | `tests/flow.js`: approve and fix cover, fix automatically, single-day change, undo (Ctrl+Z), focus trap in the request panel, Escape restores focus, empty swap form shows inline errors, Excel and CSV download, mark as final, change logged as "After final", plan next roster, reopen the exported workbook. | PASS |
-| UI3 | `tests/audit.js` (light, dark, 375px, reduced motion): font weights 400, 500, 600; no text under 12px; every control at least 44px except inline text links; no overflow; delete dialog focuses Cancel and restores focus on Escape. | PASS |
-| UI4 | Workbook downloaded from the app (with leave, swaps and a one-day rotation change) recalculated in LibreOffice: 0 cells differ. | PASS |
-
-## Edge cases covered
-
-Vacant roles, all rotations off, no analysts, leave on an RDO day, RDO swap into another pay period, swap from a day that is not an RDO, one-day rotation cover, heavy leave in one week, overlapping leave requests, 2 to 8 week rosters, non-Monday start dates (moved to the next Monday), duplicate role names (blocked with a message), reserved shift codes (RDO, Leave, Vacant).
+| UI1 | `tests/ui.js`: all 4 pages at 1280 and 375, no console errors, no page-level sideways scroll. | PASS |
+| UI2 | `tests/flow.js`: Excel bar goes from "No Excel file yet" to "up to date" on download and "Changes not in Excel yet" after an edit; single-day leave; add leave; RDO move with check; empty form shows an inline error; re-plan confirm focuses Cancel; start again; reopening the downloaded file restores leave and RDO moves. | PASS |
+| UI3 | `tests/audit.js` (light, dark, 375px, reduced motion): weights 400, 500, 600; nothing under 12px; all controls at least 44px; no overflow. | PASS |
 
 ## Known limits
 
-- Data lives in one browser on one device. Clearing site data loses it; use Settings, Data, Download backup.
-- Leave on weekends is ignored (the roster covers weekdays only).
-- Public holidays are not modelled yet.
-- The fairness view compares people within a group for one roster period only.
+- The working copy lives in one browser. The Excel file is the copy to keep.
+- Public holidays are not modelled.
+- If the same roster is edited in Excel and in the app at once, the last file downloaded wins.

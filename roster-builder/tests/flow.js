@@ -1,9 +1,8 @@
-// End-to-end flow: approve and fix, single-day change, export Excel, reopen it, plan next roster, mark final.
+// End-to-end flow: excel status, change a cell, add leave and an RDO move, re-plan, download Excel, reopen it.
 const
 {
   chromium
 } = require('playwright');
-const fs = require('fs');
 const base = process.argv[2] || 'http://localhost:8765/',
   out = process.argv[3] || '/tmp/claude-0/shots';
 (async () =>
@@ -22,101 +21,71 @@ const base = process.argv[2] || 'http://localhost:8765/',
   const errs = [];
   p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => m.type() === 'error' && errs.push(m.text()));
-  const log = (...a) => console.log(...a);
-  const issues = () => p.evaluate(() => window.__roster.issues.value.map(x => x.title));
-  await p.goto(base + '#requests',
+  const bar = () => p.locator('#xb-title').innerText();
+  await p.goto(base + '#roster',
   {
     waitUntil: 'networkidle'
   });
-  await p.waitForTimeout(300);
-  log('pending rows:', await p.locator('.req').count(), '| fix buttons:', await p.locator('text=Approve and fix cover').count());
+  await p.waitForTimeout(200);
+  console.log('excel bar at start:', await bar());
   await p.screenshot(
   {
-    path: out + '/flow-requests.png'
-  });
-  if (await p.locator('text=Approve and fix cover').count())
-  {
-    await p.click('text=Approve and fix cover');
-    await p.waitForTimeout(300);
-    log('toast:', await p.locator('.toast-item').innerText());
-  }
-  await p.goto(base + '#roster');
-  await p.waitForTimeout(200);
-  log('issues now:', await issues());
-  await p.click('text=Fix automatically').catch(() => log('no fix-all button (no issues)'));
-  await p.waitForTimeout(300);
-  log('after fix all:', await issues());
-  // keyboard: focus a cell, arrow right, enter opens popover, choose RDO, escape
-  await p.locator('.cell').first().focus();
-  await p.keyboard.press('ArrowRight');
-  await p.keyboard.press('Enter');
-  await p.waitForTimeout(200);
-  log('popover open:', await p.locator('.pop').count(), 'focused:', await p.evaluate(() => document.activeElement.textContent.trim()));
-  await p.keyboard.press('Escape');
-  await p.waitForTimeout(100);
-  log('focus back on cell:', await p.evaluate(() => document.activeElement.className));
-  await p.locator('.cell').nth(1).click();
-  await p.click('.menu-item:has-text("Make it an RDO")');
-  await p.waitForTimeout(200);
-  log('after single-day RDO:', (await issues()).slice(0, 3));
-  await p.keyboard.press('Control+z');
-  await p.waitForTimeout(200);
-  log('after undo:', (await issues()).length);
-  // slide-over focus trap + escape restores
-  await p.click('text=Add request');
-  await p.waitForTimeout(200);
-  for (let k = 0; k < 25; k++) await p.keyboard.press('Tab');
-  log('focus inside panel after 25 tabs:', await p.evaluate(() => !!document.activeElement.closest('.slide')));
-  await p.keyboard.press('Escape');
-  await p.waitForTimeout(150);
-  log('panel closed, focus on:', await p.evaluate(() => document.activeElement.textContent.trim().slice(0, 20)));
-  // submit empty swap form shows errors, no silent no-op
-  await p.click('text=Add request');
-  await p.click('.seg button:has-text("RDO swap")');
-  await p.click('text=Add as pending');
-  await p.waitForTimeout(150);
-  log('swap errors:', await p.locator('.slide .invalid-msg').allInnerTexts());
-  await p.keyboard.press('Escape');
-  // export xlsx from review
-  await p.goto(base + '#review');
-  await p.click('.tabs button:has-text("Export")');
-  const [dl] = await Promise.all([p.waitForEvent('download'), p.click('text=Download workbook')]);
-  await dl.saveAs(out + '/flow.xlsx');
-  log('xlsx:', dl.suggestedFilename());
-  const [dl2] = await Promise.all([p.waitForEvent('download'), p.click('text=Download CSV')]);
-  await dl2.saveAs(out + '/flow.csv');
-  log('csv:', dl2.suggestedFilename());
-  await p.click('text=Mark as final');
-  await p.waitForTimeout(150);
-  // change after final shows in log
-  await p.goto(base + '#roster');
-  await p.locator('.cell').nth(5).click();
-  await p.click('.menu-item:has-text("Work")');
-  await p.waitForTimeout(150);
-  await p.goto(base + '#review');
-  await p.click('.tabs button:has-text("Changes")');
-  await p.waitForTimeout(100);
-  log('after-final entries:', await p.locator('.feed-item:has-text("After final")').count());
-  await p.screenshot(
-  {
-    path: out + '/flow-changes.png'
-  });
-  // plan next roster
-  await p.goto(base + '#roster');
-  await p.click('text=Plan next roster');
-  await p.waitForTimeout(1500);
-  log('period now:', await p.locator('.period-label').innerText(), '| issues:', (await issues()).length);
-  await p.screenshot(
-  {
-    path: out + '/flow-next.png',
+    path: out + '/s-roster.png',
     fullPage: true
   });
-  // reopen exported workbook
+  const [d1] = await Promise.all([p.waitForEvent('download'), p.click('text=Download Excel')]);
+  await d1.saveAs(out + '/s1.xlsx');
+  await p.waitForTimeout(200);
+  console.log('after download:', await bar(), '|', d1.suggestedFilename());
+  await p.locator('.cell').nth(3).click();
+  await p.click('.menu-item:has-text("Mark as leave")');
+  await p.waitForTimeout(150);
+  console.log('after cell change:', await bar());
+  await p.screenshot(
+  {
+    path: out + '/s-changed.png'
+  });
+  await p.goto(base + '#leave');
+  await p.waitForTimeout(150);
+  await p.fill('#lv-from', '2026-11-11');
+  await p.fill('#lv-to', '2026-11-12');
+  await p.click('text=Add leave');
+  await p.waitForTimeout(150);
+  await p.click('#sw-to');
+  await p.fill('#sw-to', '2026-11-17');
+  await p.click('text=Move RDO');
+  await p.waitForTimeout(150);
+  console.log('leave rows:', await p.locator('section:has(#lv-h) tbody tr').count(), '| swap check:', await p.locator('section:has(#sw-h) .badge-s').allInnerTexts());
+  await p.screenshot(
+  {
+    path: out + '/s-leave.png',
+    fullPage: true
+  });
+  await p.fill('#sw-to', '');
+  await p.click('text=Move RDO');
+  await p.waitForTimeout(100);
+  console.log('empty move error:', await p.locator('section:has(#sw-h) .invalid-msg').allInnerTexts());
+  await p.goto(base + '#roster');
+  await p.click('text=Re-plan RDOs');
+  await p.waitForTimeout(100);
+  console.log('dialog focus:', await p.evaluate(() => document.activeElement.textContent.trim()));
+  await p.click('text=Re-plan roster');
+  await p.waitForTimeout(1500);
+  console.log('issues after re-plan:', await p.evaluate(() => window.__roster.issues.value.map(x => x.title)));
+  const [d2] = await Promise.all([p.waitForEvent('download'), p.click('text=Download Excel')]);
+  await d2.saveAs(out + '/s2.xlsx');
   await p.goto(base + '#settings');
-  await p.click('.settings nav button:has-text("Data")');
-  await p.setInputFiles('input[type=file]', out + '/flow.xlsx');
+  await p.click('button:has-text("Start again")');
+  await p.click('.dialog .btn-danger');
+  await p.waitForTimeout(200);
+  console.log('after start again:', await bar());
+  await p.setInputFiles('#open-xlsx', out + '/s2.xlsx');
   await p.waitForTimeout(800);
-  log('after open:', await p.locator('.period-label').innerText().catch(() => '?'), await p.locator('.toast-item').innerText().catch(() => ''));
-  log('errors:', errs);
+  console.log('after open:', await bar(), '| leave:', await p.evaluate(() => window.__roster.store.cfg.leave.length), '| swaps:', await p.evaluate(() => window.__roster.store.cfg.swaps.length));
+  await p.screenshot(
+  {
+    path: out + '/s-opened.png'
+  });
+  console.log('errors:', errs);
   await b.close();
 })();

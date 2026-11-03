@@ -1334,3 +1334,37 @@ a.who.vacant .nm { color: var(--danger); }
 .rgrid thead th { padding: 2px; }
 .dayhead { min-width: 0; width: 100%; }
 .intro h2 { font-size: 1.25rem; }
+
+/* simplified app: Excel bar and page bits */
+.excelbar { border-bottom: 1px solid var(--border); background: var(--surface); }
+.excelbar .inner { max-width: var(--vp-wide); margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); }
+.xb-icon { font-size: 2rem; color: var(--ok); line-height: 1; }
+.xb-text { flex: 1 1 320px; min-width: 0; }
+.xb-eyebrow { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); }
+.xb-title { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.xb-sub { font-size: 0.875rem; color: var(--ink-2); }
+.xb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.xb-ok .xb-title .bi { color: var(--ok); }
+.xb-changed { background: var(--warn-soft); }
+.xb-changed .xb-title, .xb-changed .xb-title .bi { color: var(--warn); }
+.who .nm { font-weight: 600; font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; }
+.who.vacant .nm { color: var(--danger); }
+.dayhead { display: grid; place-items: center; min-height: 44px; }
+.two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr)); gap: 16px; align-items: start; }
+.section-pad { padding: 16px 16px 8px; }
+.addform { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 16px; margin: 12px 0 8px; }
+.addform .addbtn { display: flex; align-items: flex-end; }
+.team-edit td { padding: 8px 12px; }
+.team-edit .form-control, .team-edit .form-select { min-width: 140px; }
+.rot-set { padding: 12px 0; border-top: 1px solid var(--hair); display: grid; gap: 12px; }
+.rot-set:first-of-type { border-top: 0; }
+.rot-set > *, .fields > * { min-width: 0; }
+.fields.two { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+.addform { grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); }
+.grid-wrap { position: relative; }
+@media (max-width: 767.98px)
+{
+  .xb-icon { display: none; }
+  .xb-actions { width: 100%; }
+  .xb-actions .btn { flex: 1; }
+}

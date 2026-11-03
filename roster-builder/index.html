@@ -19,219 +19,55 @@
 </div>
 
 <div id="app" v-cloak>
-  <a class="visually-hidden-focusable btn btn-quiet" href="#main" style="position:absolute;left:16px;top:8px;z-index:100" @click.prevent="$refs.main.focus()">Skip to content</a>
   <header class="topbar">
     <div class="inner">
       <button type="button" class="btn btn-quiet btn-icon menu-toggle" :aria-expanded="ui.menuOpen ? 'true' : 'false'" aria-controls="navmenu" v-tip="'Open menu'" @click="ui.menuOpen = !ui.menuOpen"><i class="bi" :class="ui.menuOpen ? 'bi-x-lg' : 'bi-list'" aria-hidden="true"></i></button>
       <a class="brand" href="#roster"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Roster Builder</a>
       <nav class="mainnav" aria-label="Main">
-        <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="navCurrent === k ? 'page' : null">{{ n }}<span v-if="k === 'requests' && pendingReqs.length" class="count-badge" :aria-label="pendingReqs.length + ' pending'">{{ pendingReqs.length }}</span></a>
+        <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'page' : null">{{ n }}</a>
       </nav>
       <span class="spacer"></span>
       <button type="button" class="btn btn-quiet btn-icon" :disabled="!store.undo.length" v-tip="{ text: 'Undo last change', kbd: MOD + 'Z' }" @click="undo"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
     </div>
     <nav id="navmenu" class="navmenu" v-if="ui.menuOpen" aria-label="Main">
-      <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="navCurrent === k ? 'page' : null">{{ n }}<span v-if="k === 'requests' && pendingReqs.length" class="count-badge">{{ pendingReqs.length }}</span></a>
+      <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'page' : null">{{ n }}</a>
     </nav>
   </header>
 
-  <main class="page" id="main" ref="main" tabindex="-1">
+  <section class="excelbar" :class="'xb-' + excelState.kind" aria-labelledby="xb-title">
+    <div class="inner">
+      <i class="bi bi-file-earmark-spreadsheet xb-icon" aria-hidden="true"></i>
+      <div class="xb-text">
+        <div class="xb-eyebrow">The Excel file is the source of truth</div>
+        <div id="xb-title" class="xb-title"><i v-if="excelState.kind === 'ok'" class="bi bi-check-circle-fill" aria-hidden="true"></i><i v-else-if="excelState.kind === 'changed'" class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>{{ excelState.title }}</div>
+        <div class="xb-sub">{{ excelState.text }}</div>
+      </div>
+      <div class="xb-actions">
+        <label class="btn btn-quiet" for="open-xlsx"><span v-if="ui.busy === 'open'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-folder2-open" aria-hidden="true"></i>Open Excel file<input id="open-xlsx" type="file" accept=".xlsx" class="visually-hidden" @change="pickFile"></label>
+        <button type="button" class="btn btn-primary" @click="saveExcel" :aria-busy="ui.busy === 'save' ? 'true' : 'false'"><span v-if="ui.busy === 'save'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-download" aria-hidden="true"></i>Download Excel</button>
+      </div>
+    </div>
+  </section>
+
+  <main class="page" id="main" tabindex="-1">
     <component :is="page"></component>
   </main>
 
-  <!-- Cell / rotation popover (non-modal) -->
-  <div v-if="pop" ref="pop" class="pop" :style="popPos || { left: '-9999px', top: '0' }" role="dialog" :aria-label="pop.kind === 'cell' && popPerson ? v(popPerson) + ', ' + nice(pop.iso) : 'Choose who covers ' + nice(pop.iso)" @keydown.esc.stop="closePop()">
-    <template v-if="pop.kind === 'cell' && popPerson">
-      <div class="pop-head"><b>{{ v(popPerson) }}, {{ nice(pop.iso) }}</b><span class="meta">{{ popValue }} · {{ popSource }}</span></div>
-      <div role="menu" :aria-label="'Set ' + v(popPerson) + ' for ' + nice(pop.iso)">
-        <button v-for="o in [[eff.shifts.early, 'var(--early)'], [eff.shifts.late, 'var(--late)'], ['RDO', 'var(--rdo)']]" :key="o[0]" type="button" class="menu-item" role="menuitemradio" :aria-checked="popValue === o[0] ? 'true' : 'false'" @click="choose(o[0])"><span class="swatch" :style="{ background: o[1] }"></span>{{ o[0] === 'RDO' ? 'Make it an RDO' : 'Work ' + o[0] }}</button>
-        <button type="button" class="menu-item" role="menuitem" @click="leaveFromCell"><span class="swatch" style="background: var(--leave)"></span>Record leave from this day</button>
-        <button v-if="popSource === 'Changed for this day'" type="button" class="menu-item" role="menuitem" @click="choose(null)"><i class="bi bi-arrow-return-left" aria-hidden="true"></i>Set back to the plan</button>
-      </div>
-    </template>
-    <template v-if="pop.kind === 'rot'">
-      <div class="pop-head"><b>{{ P.ROT_LABEL(eff)[pop.rot] }}, {{ nice(pop.iso) }}</b><span class="meta">Now: {{ popRotCurrent }}{{ popRotManual ? ' (changed for this day)' : '' }}</span></div>
-      <div role="menu" :aria-label="'Choose who covers ' + P.ROT_LABEL(eff)[pop.rot]">
-        <div class="pop-sec">Working that day</div>
-        <button v-for="o in popRotOptions.filter(x => x.working)" :key="o.p.id" type="button" class="menu-item" role="menuitemradio" :aria-checked="popRotCurrent === v(o.p) ? 'true' : 'false'" @click="chooseRot(o.p.id)">{{ v(o.p) }} <span class="meta">{{ o.v }}</span></button>
-        <div class="pop-sec" v-if="popRotOptions.some(x => !x.working)">Off that day</div>
-        <div v-for="o in popRotOptions.filter(x => !x.working)" :key="'o' + o.p.id" class="menu-item text-3" aria-disabled="true">{{ v(o.p) }} <span class="meta">{{ o.v }}</span></div>
-        <button v-if="popRotManual" type="button" class="menu-item" role="menuitem" @click="chooseRot(null)"><i class="bi bi-arrow-return-left" aria-hidden="true"></i>Set back to the rotation</button>
-      </div>
-    </template>
+  <div v-if="pop && popP" ref="pop" class="pop" :style="popPos || { left: '-9999px', top: '0' }" role="dialog" :aria-label="v(popP) + ', ' + nice(pop.iso)" @keydown.esc.stop="closePop()">
+    <div class="pop-head"><b>{{ v(popP) }}, {{ nice(pop.iso) }}</b><span class="meta">Now {{ popVal }}{{ popChanged ? ', changed for this day' : '' }}</span></div>
+    <div role="menu" :aria-label="'Set ' + v(popP) + ' for ' + nice(pop.iso)">
+      <button v-for="o in [[cfg.shifts.early, 'var(--early)'], [cfg.shifts.late, 'var(--late)'], ['RDO', 'var(--rdo)'], ['Leave', 'var(--leave)']]" :key="o[0]" type="button" class="menu-item" role="menuitemradio" :aria-checked="popVal === o[0] ? 'true' : 'false'" @click="choose(o[0])"><span class="swatch" :style="{ background: o[1] }"></span>{{ o[0] === 'RDO' ? 'Make it an RDO' : o[0] === 'Leave' ? 'Mark as leave' : 'Work ' + o[0] }}</button>
+      <button v-if="popChanged" type="button" class="menu-item" role="menuitem" @click="choose(null)"><i class="bi bi-arrow-return-left" aria-hidden="true"></i>Set back to the plan</button>
+    </div>
   </div>
 
-  <!-- Slide-over -->
-  <template v-if="slide">
-    <div class="scrim" @click="closeSlide"></div>
-    <aside class="slide" ref="slide" role="dialog" aria-modal="true" aria-labelledby="slide-title" @keydown="slideKey">
-      <!-- New request -->
-      <template v-if="slide.kind === 'request' && form">
-        <div class="slide-head">
-          <div><h2 id="slide-title">New request</h2><p>See what it does to cover before you approve it.</p></div>
-          <button type="button" class="btn btn-quiet btn-icon" v-tip="'Close panel'" @click="closeSlide"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-        </div>
-        <form class="slide-body" novalidate @submit.prevent="submitRequest(false)">
-          <div v-if="form.restored" class="impact-box d-flex justify-content-between align-items-center gap-2"><span>Your unsaved request was restored.</span><button type="button" class="btn btn-link-quiet" @click="discardDraft">Discard draft</button></div>
-          <div>
-            <label class="form-label" for="rq-pid">Person</label>
-            <select id="rq-pid" class="form-select" v-model="form.pid" :class="{ 'is-invalid': ferr('pid', reqErrors) }" @blur="blur('pid')" @focus="unfocusErr('pid')" autofocus>
-              <option v-for="p in reqPeople" :key="p.id" :value="p.id">{{ v(p) }} ({{ p.role }})</option>
-            </select>
-            <div class="invalid-msg" v-if="ferr('pid', reqErrors)">{{ reqErrors.pid }}</div>
-          </div>
-          <div>
-            <span class="form-label d-block" id="rq-type-l">Type</span>
-            <div class="seg flex-wrap" role="radiogroup" aria-labelledby="rq-type-l">
-              <button v-for="t in ['annual', 'personal', 'other', 'swap']" :key="t" type="button" role="radio" :aria-checked="form.type === t ? 'true' : 'false'" :aria-pressed="form.type === t ? 'true' : 'false'" @click="form.type = t; form.from = ''; form.to = ''; touched = {}">{{ typeLabel(t) }}</button>
-            </div>
-          </div>
-          <template v-if="form.type !== 'swap'">
-            <div class="row g-3">
-              <div class="col-6">
-                <label class="form-label" for="rq-from">First day</label>
-                <input id="rq-from" type="date" class="form-control" v-model="form.from" :class="{ 'is-invalid': ferr('from', reqErrors) }" @blur="blur('from')" @focus="unfocusErr('from')" @change="form.to = (!form.to || form.to < form.from) ? form.from : form.to">
-                <div class="invalid-msg" v-if="ferr('from', reqErrors)">{{ reqErrors.from }}</div>
-              </div>
-              <div class="col-6">
-                <label class="form-label" for="rq-to">Last day</label>
-                <input id="rq-to" type="date" class="form-control" v-model="form.to" :min="form.from" :class="{ 'is-invalid': ferr('to', reqErrors) }" @blur="blur('to')" @focus="unfocusErr('to')">
-                <div class="invalid-msg" v-if="ferr('to', reqErrors)">{{ reqErrors.to }}</div>
-              </div>
-            </div>
-            <div class="form-text" v-if="form.from">{{ plural(days(form), 'weekday') }} of leave.</div>
-          </template>
-          <template v-else>
-            <div>
-              <label class="form-label" for="rq-from">RDO to move</label>
-              <select id="rq-from" class="form-select" v-model="form.from" :class="{ 'is-invalid': ferr('from', reqErrors) }" @blur="blur('from')" @focus="unfocusErr('from')">
-                <option value="" disabled>Choose an RDO</option>
-                <option v-for="o in reqRdoDates" :key="o.iso" :value="o.iso">{{ nice(o.iso) }}{{ o.taken ? ' (already changed)' : '' }}</option>
-              </select>
-              <div class="invalid-msg" v-if="ferr('from', reqErrors)">{{ reqErrors.from }}</div>
-            </div>
-            <div>
-              <label class="form-label" for="rq-to">Move it to</label>
-              <input id="rq-to" type="date" class="form-control" v-model="form.to" :class="{ 'is-invalid': ferr('to', reqErrors) }" @blur="blur('to')" @focus="unfocusErr('to')">
-              <div class="invalid-msg" v-if="ferr('to', reqErrors)">{{ reqErrors.to }}</div>
-              <div v-if="reqSuggest.length" class="mt-2">
-                <span class="form-text d-block mb-2">Days that keep cover OK:</span>
-                <div class="daypick"><button v-for="s in reqSuggest" :key="s.iso" type="button" class="btn btn-quiet" :aria-pressed="form.to === s.iso ? 'true' : 'false'" @click="form.to = s.iso; touched.to = false">Use {{ nice(s.iso) }}</button></div>
-              </div>
-            </div>
-          </template>
-          <div>
-            <label class="form-label" for="rq-note">Note <span class="text-3">(optional)</span></label>
-            <input id="rq-note" type="text" class="form-control" v-model="form.note" maxlength="140" placeholder="Family trip">
-          </div>
-          <div v-if="reqImpact" class="impact-box" :class="reqImpact.outside ? '' : reqImpact.warn ? 'warn' : (reqImpact.safe ? 'ok' : 'bad')" aria-live="polite">
-            <template v-if="reqImpact.outside">These dates are outside the rosters you have planned, so cover can't be checked yet.</template>
-            <template v-else-if="reqImpact.invalid"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i> This swap can't apply: {{ reqImpact.invalid.toLowerCase() }}.</template>
-            <template v-else-if="reqImpact.safe && !reqImpact.warn"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Safe to approve. Cover and rotations stay OK.</template>
-            <template v-else-if="reqImpact.warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Cover stays OK, but check this after approving:<ul><li v-for="x in reqImpact.added.slice(0, 3)" :key="x.id">{{ x.title }}. {{ x.detail }}</li></ul></template>
-            <template v-else><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i> Approving this causes {{ plural(reqImpact.added.length, 'problem') }}:<ul><li v-for="x in reqImpact.added.slice(0, 4)" :key="x.id">{{ x.title }}. {{ x.detail }}</li></ul></template>
-          </div>
-        </form>
-        <div class="slide-foot">
-          <button type="button" class="btn btn-primary" @click="submitRequest(true)">Add and approve</button>
-          <button type="button" class="btn btn-quiet" @click="submitRequest(false)">Add as pending</button>
-          <button type="button" class="btn btn-link-quiet ms-auto" @click="closeSlide">Cancel</button>
-        </div>
-      </template>
-
-      <!-- Add / edit person -->
-      <template v-if="slide.kind === 'person' && form">
-        <div class="slide-head">
-          <div><h2 id="slide-title">{{ form.id ? 'Edit details' : 'Add person' }}</h2><p>{{ form.id ? 'Changes apply to this roster and any you plan after it.' : 'Their RDOs are placed where they hurt cover least.' }}</p></div>
-          <button type="button" class="btn btn-quiet btn-icon" v-tip="'Close panel'" @click="closeSlide"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-        </div>
-        <form class="slide-body" novalidate @submit.prevent="submitPerson">
-          <div>
-            <label class="form-label" for="ps-name">Name</label>
-            <input id="ps-name" type="text" class="form-control" v-model="form.name" autocomplete="off" autofocus maxlength="40">
-            <div class="form-text">Leave blank to show the role as Vacant. Use made-up names in this prototype.</div>
-          </div>
-          <div>
-            <label class="form-label" for="ps-group">Group</label>
-            <select id="ps-group" class="form-select" v-model="form.group" @change="groupChanged">
-              <option value="analyst">Analyst: covers front desk and second site</option>
-              <option value="senior">Senior: counts to senior cover, on call</option>
-              <option value="leader">Lead: no rotations</option>
-            </select>
-          </div>
-          <div>
-            <label class="form-label" for="ps-role">Role</label>
-            <input id="ps-role" type="text" class="form-control" v-model="form.role" :class="{ 'is-invalid': ferr('role', personErrors) }" @blur="blur('role')" @focus="unfocusErr('role')" maxlength="40">
-            <div class="invalid-msg" v-if="ferr('role', personErrors)">{{ personErrors.role }}</div>
-          </div>
-          <div>
-            <label class="form-label" for="ps-pattern">Shift pattern</label>
-            <select id="ps-pattern" class="form-select" v-model="form.pattern">
-              <option value="alt">Swap between {{ eff.shifts.early }} and {{ eff.shifts.late }} each pay period</option>
-              <option value="early">Always {{ eff.shifts.early }}</option>
-              <option value="late">Always {{ eff.shifts.late }}</option>
-            </select>
-          </div>
-        </form>
-        <div class="slide-foot">
-          <button type="button" class="btn btn-primary" @click="submitPerson">{{ form.id ? 'Save changes' : 'Add person' }}</button>
-          <button type="button" class="btn btn-link-quiet ms-auto" @click="closeSlide">Cancel</button>
-        </div>
-      </template>
-
-      <!-- Day detail -->
-      <template v-if="slide.kind === 'day' && dayInfo">
-        <div class="slide-head">
-          <div><h2 id="slide-title">{{ dayName(dayInfo.d.iso) }} {{ fmt(dayInfo.d.iso, true) }}</h2><p>Week {{ dayInfo.d.w + 1 }}, pay period {{ dayInfo.d.f + 1 }}. Cover check: <b :class="dayInfo.x.cover === 'OK' ? 'text-success' : 'text-danger'">{{ dayInfo.x.cover === 'OK' ? 'OK' : 'Short' }}</b></p></div>
-          <button type="button" class="btn btn-quiet btn-icon" v-tip="'Close panel'" @click="closeSlide"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-        </div>
-        <div class="slide-body">
-          <div v-if="dayInfo.issues.length" class="surface">
-            <div v-for="iss in dayInfo.issues" :key="iss.id" class="issue" :class="'sev' + iss.severity">
-              <i class="bi ico" :class="iss.severity === 2 ? 'bi-exclamation-circle-fill' : 'bi-exclamation-triangle-fill'" aria-hidden="true"></i>
-              <div><div class="what">{{ iss.title }}</div><div class="why">{{ iss.detail }}</div></div>
-              <div class="fixes" v-if="dayFixes(iss).length"><button v-for="fx in dayFixes(iss)" :key="fx.label" type="button" class="btn btn-quiet fix-btn" @click="fixFromDay(fx)"><i class="bi bi-magic" aria-hidden="true"></i>{{ fx.label }}</button></div>
-              <div class="nofix" v-else>No single change fixes this. Try moving an RDO on the Requests page.</div>
-            </div>
-          </div>
-          <div class="surface">
-            <table class="dtable">
-              <tbody>
-                <tr><td>On {{ eff.shifts.early }}</td><td class="num mono">{{ dayInfo.x.early }} <span class="text-3">/ {{ eff.rules.minEarly }}</span></td></tr>
-                <tr><td>On {{ eff.shifts.late }}</td><td class="num mono">{{ dayInfo.x.late }} <span class="text-3">/ {{ eff.rules.minLate }}</span></td></tr>
-                <tr><td>{{ E.seniorLabel(eff) }}</td><td class="num mono">{{ dayInfo.x.senior }} <span class="text-3">/ {{ eff.rules.minSenior }}</span></td></tr>
-                <tr v-if="dayInfo.x.siteB != null"><td>{{ eff.rules.siteB.label }} on duty</td><td class="num mono">{{ dayInfo.x.siteB }} <span class="text-3">/ {{ eff.rules.siteB.min }}</span></td></tr>
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <h3>Rotations</h3>
-            <dl class="row mb-0 small-2">
-              <template v-if="dayInfo.x.frontDesk != null"><dt class="col-6 fw-normal text-2">{{ eff.rules.frontDesk.label }}</dt><dd class="col-6">{{ dayInfo.x.frontDesk }}</dd></template>
-              <template v-if="dayInfo.x.seat1 != null"><dt class="col-6 fw-normal text-2">{{ eff.rules.siteB.label }} seats</dt><dd class="col-6">{{ dayInfo.x.seat1 }}, {{ dayInfo.x.seat2 }}</dd></template>
-              <template v-if="dayInfo.x.onCall != null"><dt class="col-6 fw-normal text-2">{{ eff.rules.onCall.label }}</dt><dd class="col-6">{{ dayInfo.x.onCall }}</dd></template>
-            </dl>
-          </div>
-          <div><h3>On {{ eff.shifts.early }}</h3><p class="mb-0 small-2">{{ dayInfo.early.map(v).join(', ') || 'No one' }}</p></div>
-          <div><h3>On {{ eff.shifts.late }}</h3><p class="mb-0 small-2">{{ dayInfo.late.map(v).join(', ') || 'No one' }}</p></div>
-          <div><h3>Off</h3><p class="mb-0 small-2"><span v-for="(p, k) in dayInfo.off" :key="p.id">{{ v(p) }} ({{ R.grid.get(p.id)[dayInfo.d.i] }}){{ k < dayInfo.off.length - 1 ? ', ' : '' }}</span><span v-if="!dayInfo.off.length">No one</span></p></div>
-        </div>
-        <div class="slide-foot">
-          <button type="button" class="btn btn-quiet" @click="closeSlide(); openRequest({ from: dayInfo.d.iso, to: dayInfo.d.iso })">Add a request for this day</button>
-          <button type="button" class="btn btn-link-quiet ms-auto" @click="closeSlide">Close</button>
-        </div>
-      </template>
-    </aside>
-  </template>
-
-  <!-- Confirm dialog -->
   <template v-if="dlg">
     <div class="scrim dialog-scrim" @click="closeDlg"></div>
     <div class="dialog" ref="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-b" @keydown="dlgKey">
       <h2 id="dlg-t">{{ dlg.title }}</h2>
       <p id="dlg-b">{{ dlg.body }}</p>
       <div class="btns">
-        <button type="button" class="btn btn-quiet" ref="dlgCancel" @click="closeDlg">Cancel</button>
+        <button type="button" class="btn btn-quiet" ref="cancel" @click="closeDlg">Cancel</button>
         <button type="button" class="btn" :class="dlg.danger === false ? 'btn-primary' : 'btn-danger'" @click="runDlg">{{ dlg.confirm }}</button>
       </div>
     </div>
@@ -246,540 +82,224 @@
   </div>
 </div>
 
-<!-- ================= Roster (Pattern 7: Calendar) ================= -->
+<!-- Roster (Pattern 7: Calendar) -->
 <script type="text/x-template" id="tpl-roster">
 <div>
   <div class="page-head">
     <div>
       <h1 tabindex="-1">Roster</h1>
-      <p class="lede">{{ period.title }} · {{ plural(R.ro.length, 'person', 'people') }} · <span class="badge-s" :class="period.status === 'final' ? 'ok' : ''">{{ period.status === 'final' ? 'Final' : 'Draft' }}</span></p>
+      <p class="lede">{{ cfg.title }}, {{ periodLabel(cfg) }}. Check it here, then download the Excel file for the team.</p>
     </div>
     <div class="actions">
-      <button v-if="!nextPeriod" type="button" class="btn btn-quiet" @click="act('planNext')" :aria-busy="ui.busy === 'next' ? 'true' : 'false'"><span v-if="ui.busy === 'next'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-calendar-plus" aria-hidden="true"></i>Plan next roster</button>
-      <button type="button" class="btn btn-primary" @click="openRequest()"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add request</button>
+      <button type="button" class="btn btn-quiet" @click="replan" :aria-busy="ui.busy === 'replan' ? 'true' : 'false'"><span v-if="ui.busy === 'replan'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-arrow-repeat" aria-hidden="true"></i>Re-plan RDOs</button>
     </div>
   </div>
 
-  <div class="toolbar">
-    <div class="period-nav">
-      <button type="button" class="btn btn-quiet btn-icon" :disabled="!prevPeriod" v-tip="'Show previous roster'" @click="act('goPeriod', prevPeriod.id)"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
-      <span class="period-label tnum" aria-live="polite">{{ periodLabel(period) }}</span>
-      <button type="button" class="btn btn-quiet btn-icon" :disabled="!nextPeriod" v-tip="'Show next roster'" @click="act('goPeriod', nextPeriod.id)"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
-      <button type="button" class="btn btn-quiet" @click="act('today')">Today</button>
-    </div>
-    <span class="grow"></span>
-    <div class="seg" role="group" aria-label="View">
-      <button type="button" :aria-pressed="ui.rosterView === 'period' ? 'true' : 'false'" @click="setView('period')">{{ period.weeks }} weeks</button>
-      <button type="button" :aria-pressed="ui.rosterView === 'week' ? 'true' : 'false'" @click="setView('week')">Week</button>
-    </div>
-  </div>
-
-  <div class="toolbar">
-    <div class="search">
-      <label for="roster-search" class="lbl-wide">Find person</label>
-      <div class="field"><i class="bi bi-search" aria-hidden="true"></i><input id="roster-search" data-search type="search" class="form-control" v-model="ui.search" placeholder="Name or role" autocomplete="off"><kbd v-if="!ui.search" aria-hidden="true">/</kbd></div>
-    </div>
-    <div class="filters position-relative">
-      <button type="button" class="btn btn-quiet" :aria-expanded="ui.filtersOpen ? 'true' : 'false'" aria-controls="roster-filters" @click="ui.filtersOpen = !ui.filtersOpen"><i class="bi bi-funnel" aria-hidden="true"></i>Filters<span v-if="filterCount" class="count-badge">{{ filterCount }}</span></button>
-      <div v-if="ui.filtersOpen" id="roster-filters" class="pop" style="top: 48px; left: 0">
-        <div class="pop-sec">Group</div>
-        <label v-for="g in ['leader', 'senior', 'analyst']" :key="g" class="menu-item"><input type="checkbox" class="form-check-input m-0" :checked="ui.groups.includes(g)" @change="toggleGroup(g)">{{ groupPlural(g) }}</label>
-        <div class="pop-sec">Problems</div>
-        <label class="menu-item"><input type="checkbox" class="form-check-input m-0" v-model="ui.onlyIssues">Only people with problems</label>
-      </div>
-    </div>
-    <template v-if="ui.rosterView === 'week'">
-      <span class="grow"></span>
-      <div class="seg" role="tablist" aria-label="Week">
-        <button v-for="w in period.weeks" :key="w" type="button" role="tab" :aria-selected="ui.week === w - 1 ? 'true' : 'false'" @click="ui.week = w - 1">Week {{ w }}</button>
-      </div>
-    </template>
-  </div>
-  <div class="chips" v-if="filterCount || ui.search">
-    <span v-if="ui.search" class="chip">Search: {{ ui.search }}<button type="button" v-tip="'Clear search'" @click="ui.search = ''"><i class="bi bi-x" aria-hidden="true"></i></button></span>
-    <span v-for="g in ui.groups" :key="g" class="chip">{{ groupPlural(g) }}<button type="button" v-tip="'Remove ' + groupPlural(g) + ' filter'" @click="toggleGroup(g)"><i class="bi bi-x" aria-hidden="true"></i></button></span>
-    <span v-if="ui.onlyIssues" class="chip">With problems<button type="button" v-tip="'Remove problems filter'" @click="ui.onlyIssues = false"><i class="bi bi-x" aria-hidden="true"></i></button></span>
-    <button type="button" class="btn btn-link-quiet" @click="clearFilters">Clear all filters</button>
-  </div>
-
-  <section v-if="!ui.introHidden" class="surface intro mb-3" aria-labelledby="intro-h">
-    <div class="intro-body">
-      <h2 id="intro-h" class="h3">How this roster works</h2>
-      <ol>
-        <li><b>Check the problems below.</b> Each one says what's wrong and offers a fix you can apply in one go.</li>
-        <li><b>Decide leave and RDO swaps on Requests.</b> Every request shows what approving it does to cover.</li>
-        <li><b>Review, mark as final and share.</b> Review has the payroll summary, a table to paste into email, and the Excel workbook.</li>
-      </ol>
-      <p class="meta mb-0">The team uses made-up names. Everything stays in this browser.</p>
-    </div>
-    <button type="button" class="btn btn-quiet btn-icon" v-tip="'Hide this guide'" @click="hideIntro"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
-  </section>
-
-  <section class="surface issues mb-3" aria-labelledby="issues-h">
-    <div v-if="!issues.length" class="allclear"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span id="issues-h"><b class="text-success">No problems.</b> <span>Cover, rotations and RDOs all check out.</span></span></div>
+  <section class="surface mb-3" aria-labelledby="chk-h">
+    <div v-if="!issues.length" class="allclear"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span id="chk-h"><b class="text-success">Roster checks out.</b> <span>Cover, rotations and RDOs are all OK.</span></span></div>
     <template v-else>
-      <div class="issues-head">
-        <div class="title" id="issues-h"><i class="bi bi-exclamation-circle-fill text-danger" aria-hidden="true"></i>{{ plural(issues.length, 'problem') }} to sort out</div>
-        <button type="button" class="btn btn-quiet" @click="act('fixAll')"><i class="bi bi-magic" aria-hidden="true"></i>Fix automatically</button>
-      </div>
-      <div v-for="iss in shownIssues" :key="iss.id" class="issue" :class="'sev' + iss.severity">
+      <div class="issues-head"><div class="title" id="chk-h"><i class="bi bi-exclamation-circle-fill text-danger" aria-hidden="true"></i>{{ plural(issues.length, 'thing') }} to check</div><span class="text-2 small-2">Select a cell to change a day, or re-plan RDOs.</span></div>
+      <div v-for="iss in issues.slice(0, 6)" :key="iss.id" class="issue" :class="'sev' + iss.severity">
         <i class="bi ico" :class="iss.severity === 2 ? 'bi-exclamation-circle-fill' : 'bi-exclamation-triangle-fill'" aria-hidden="true"></i>
         <div><div class="what">{{ iss.title }}</div><div class="why">{{ iss.detail }}</div></div>
-        <div class="fixes">
-          <button v-for="fx in fixesFor(iss)" :key="fx.label" type="button" class="btn btn-quiet fix-btn" @click="act('applyFix', fx)"><i class="bi bi-magic" aria-hidden="true"></i>{{ fx.label }}<span v-if="fx.partial" class="meta">(helps)</span></button>
-          <button v-if="iss.i != null" type="button" class="btn btn-link-quiet" @click="openDay(iss.i)">View day</button>
-          <a v-if="iss.pid && iss.i == null" class="btn btn-link-quiet" :href="'#person-' + iss.pid">View {{ nameOf(iss.pid) }}</a>
-        </div>
-        <div class="nofix" v-if="!fixesFor(iss).length">No single change fixes this. Move an RDO or ask someone to swap.</div>
       </div>
-      <div v-if="issues.length > 4" class="p-2 border-top" style="border-color: var(--hair) !important">
-        <button type="button" class="btn btn-link-quiet" @click="ui.issuesAll = !ui.issuesAll">{{ ui.issuesAll ? 'Show fewer' : 'Show all ' + issues.length + ' problems' }}</button>
-      </div>
+      <div v-if="issues.length > 6" class="issue"><span></span><div class="why">And {{ plural(issues.length - 6, 'more') }}.</div></div>
     </template>
   </section>
 
+  <div class="toolbar">
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" :aria-pressed="ui.rosterView === 'period' ? 'true' : 'false'" @click="setView('period')">All {{ cfg.weeks }} weeks</button>
+      <button type="button" :aria-pressed="ui.rosterView === 'week' ? 'true' : 'false'" @click="setView('week')">One week</button>
+    </div>
+    <div v-if="ui.rosterView === 'week'" class="seg" role="tablist" aria-label="Week">
+      <button v-for="w in cfg.weeks" :key="w" type="button" role="tab" :aria-selected="ui.week === w - 1 ? 'true' : 'false'" @click="ui.week = w - 1">Week {{ w }}</button>
+    </div>
+  </div>
+
   <section class="surface" aria-label="Roster grid">
-    <div class="grid-wrap" @keydown="gridKey">
+    <div class="grid-wrap">
       <table class="rgrid" :class="{ week: ui.rosterView === 'week' }">
         <thead>
           <tr class="weeks" v-if="ui.rosterView === 'period'">
             <th class="sticky" scope="col"><span class="visually-hidden">Person</span></th>
-            <th v-for="w in period.weeks" :key="w" colspan="5" scope="colgroup" :class="(w - 1) % 2 === 0 ? 'pp' : 'wk'">Week {{ w }} <span class="text-3">· pay period {{ Math.floor((w - 1) / 2) + 1 }}</span></th>
+            <th v-for="w in cfg.weeks" :key="w" colspan="5" scope="colgroup" :class="(w - 1) % 2 === 0 ? 'pp' : 'wk'">Week {{ w }} <span class="text-3">· pay period {{ Math.floor((w - 1) / 2) + 1 }}</span></th>
           </tr>
           <tr>
             <th class="sticky" scope="col">Person</th>
-            <th v-for="d in visibleDays" :key="d.iso" scope="col" :class="ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : ''">
-              <button type="button" class="dayhead" :class="{ short: issueDays.has(d.i), today: d.iso === todayIso }" @click="openDay(d.i)" :aria-label="'Open ' + nice(d.iso) + (issueDays.has(d.i) ? ', has problems' : '')">
-                <span>{{ E.DAYS[d.dow - 1] }}</span><span class="d">{{ fmt(d.iso) }}</span>
-              </button>
-            </th>
+            <th v-for="d in days" :key="d.iso" scope="col" :class="wk(d)"><div class="dayhead" :class="{ short: shortDays.has(d.i) }"><span>{{ E.DAYS[d.dow - 1] }}</span><span class="d">{{ fmt(d.iso) }}</span></div></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(p, ri) in people" :key="p.id">
-            <th class="sticky" scope="row"><a class="who" :class="{ vacant: v(p) === 'Vacant' }" :href="'#person-' + p.id"><span class="nm">{{ v(p) }}</span><span class="role">{{ p.role }}</span></a></th>
-            <td v-for="(d, ci) in visibleDays" :key="d.iso" :class="[cellClass(cellOf(p, d)), { changed: isChanged(p, d), pending: pendingCells.has(p.id + '|' + d.iso), clash: clashCells.has(p.id + '|' + d.iso) }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">
-              <button type="button" class="cell" :data-r="ri" :data-c="ci" @click="openCell($event, p, d)" :aria-label="v(p) + ', ' + nice(d.iso) + ': ' + cellOf(p, d) + (isChanged(p, d) ? ', changed for this day' : '') + (pendingCells.has(p.id + '|' + d.iso) ? ', ' + pendingCells.get(p.id + '|' + d.iso) : '') + (duties(p, d).length ? ', ' + duties(p, d).join(', ') : '')">
-                <span>{{ cellOf(p, d) }}</span>
+          <tr v-for="p in R.ro" :key="p.id">
+            <th class="sticky" scope="row"><div class="who" :class="{ vacant: v(p) === 'Vacant' }"><span class="nm">{{ v(p) }}</span><span class="role">{{ p.role }}</span></div></th>
+            <td v-for="d in days" :key="d.iso" :class="[cellClass(val(p, d)), { changed: changed(p, d) }, wk(d)]">
+              <button type="button" class="cell" @click="openCell($event, p, d)" :aria-label="v(p) + ', ' + nice(d.iso) + ': ' + val(p, d) + (changed(p, d) ? ', changed for this day' : '')">
+                <span>{{ val(p, d) }}</span>
                 <span v-if="ui.rosterView === 'week' && duties(p, d).length" class="duty">{{ duties(p, d).join(', ') }}</span>
-                <span v-else-if="ui.rosterView === 'week' && pendingCells.has(p.id + '|' + d.iso)" class="duty">{{ pendingCells.get(p.id + '|' + d.iso) }}</span>
               </button>
             </td>
           </tr>
-          <tr v-if="!people.length"><td :colspan="visibleDays.length + 1" class="text-start p-0"><div class="empty"><h3>No one matches</h3><p>Nobody on this roster fits the search or filters.</p><button type="button" class="btn btn-quiet" @click="clearFilters">Clear all filters</button></div></td></tr>
-
-          <tr class="band"><th class="sticky" scope="row">Cover</th><td :colspan="visibleDays.length"></td></tr>
-          <tr class="cov">
-            <th class="sticky" scope="row">On {{ eff.shifts.early }} <span class="meta">min {{ eff.rules.minEarly }}</span></th>
-            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].early < eff.rules.minEarly }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].early }}</td>
+          <tr class="band"><th class="sticky" scope="row">Cover</th><td :colspan="days.length"></td></tr>
+          <tr class="cov" v-for="row in [['early', 'On ' + cfg.shifts.early, cfg.rules.minEarly], ['late', 'On ' + cfg.shifts.late, cfg.rules.minLate], ['senior', E.seniorLabel(cfg).replace(' on duty', ''), cfg.rules.minSenior]].concat(R.cols[0].siteB != null ? [['siteB', cfg.rules.siteB.label, cfg.rules.siteB.min]] : [])" :key="row[0]">
+            <th class="sticky" scope="row">{{ row[1] }} <span class="meta">min {{ row[2] }}</span></th>
+            <td v-for="d in days" :key="d.iso" class="n" :class="[{ low: R.cols[d.i][row[0]] < row[2] }, wk(d)]">{{ R.cols[d.i][row[0]] }}</td>
           </tr>
-          <tr class="cov">
-            <th class="sticky" scope="row">On {{ eff.shifts.late }} <span class="meta">min {{ eff.rules.minLate }}</span></th>
-            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].late < eff.rules.minLate }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].late }}</td>
-          </tr>
-          <tr class="cov">
-            <th class="sticky" scope="row">{{ E.seniorLabel(eff).replace(' on duty', '') }} <span class="meta">min {{ eff.rules.minSenior }}</span></th>
-            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].senior < eff.rules.minSenior }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].senior }}</td>
-          </tr>
-          <tr class="cov" v-if="R.cols[0].siteB != null">
-            <th class="sticky" scope="row">{{ eff.rules.siteB.label }} <span class="meta">min {{ eff.rules.siteB.min }}</span></th>
-            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].siteB < eff.rules.siteB.min }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].siteB }}</td>
-          </tr>
-
           <template v-if="rotRows.length">
-            <tr class="band"><th class="sticky" scope="row">Rotations</th><td :colspan="visibleDays.length"></td></tr>
-            <tr v-for="(row, rj) in rotRows" :key="row.key" :class="row.cls">
+            <tr class="band"><th class="sticky" scope="row">Rotations</th><td :colspan="days.length"></td></tr>
+            <tr v-for="row in rotRows" :key="row.col" :class="row.cls">
               <th class="sticky" scope="row">{{ row.label }} <span class="meta">{{ row.note }}</span></th>
-              <td v-for="(d, ci) in visibleDays" :key="d.iso" class="rc" :class="[{ clash: rotClash(row, d), manual: (R.cols[d.i].manual || {})[row.key] }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">
-                <button type="button" class="rot-cell" :data-r="people.length + 10 + rj" :data-c="ci" @click="openRot($event, row, d)" :aria-label="row.label + ', ' + nice(d.iso) + ': ' + R.cols[d.i][row.col] + (rotClash(row, d) ? ', needs cover' : '')">{{ R.cols[d.i][row.col] }}</button>
-              </td>
-              </tr>
+              <td v-for="d in days" :key="d.iso" class="rc" :class="[{ clash: clash(row, d) }, wk(d)]"><span class="rot-cell d-flex align-items-center justify-content-center">{{ R.cols[d.i][row.col] }}</span></td>
+            </tr>
           </template>
         </tbody>
       </table>
     </div>
     <div class="legend" aria-label="Key">
-      <span><i style="background: var(--early)"></i>{{ eff.shifts.early }}</span>
-      <span><i style="background: var(--late)"></i>{{ eff.shifts.late }}</span>
+      <span><i style="background: var(--early)"></i>{{ cfg.shifts.early }}</span>
+      <span><i style="background: var(--late)"></i>{{ cfg.shifts.late }}</span>
       <span><i style="background: var(--rdo)"></i>RDO</span>
       <span><i style="background: var(--leave)"></i>Leave</span>
       <span><i class="mk-changed"></i>Changed for one day</span>
-      <span><i class="mk-pending"></i>Pending request</span>
-      <span><i class="mk-clash"></i>Needs cover</span>
-      <span class="ms-auto text-3">Select a cell to change it. Arrow keys move between cells.</span>
+      <span><i class="mk-clash"></i>Rostered but off</span>
+      <span class="ms-auto text-3">Select a cell to change that day.</span>
     </div>
   </section>
 </div>
 </script>
 
-<!-- ================= Requests (Pattern 10: Inbox) ================= -->
-<script type="text/x-template" id="tpl-requests">
-<div>
-  <div class="page-head">
-    <div>
-      <h1 tabindex="-1">Requests</h1>
-      <p class="lede">Leave and RDO swaps. Each pending request shows what approving it would do to cover.</p>
-    </div>
-    <div class="actions"><button type="button" class="btn btn-primary" @click="openRequest()"><i class="bi bi-plus-lg" aria-hidden="true"></i>New request</button></div>
-  </div>
-  <div class="toolbar">
-    <div class="seg" role="tablist" aria-label="Show requests">
-      <button v-for="[k, n] in [['pending', 'Pending'], ['approved', 'Approved'], ['declined', 'Declined'], ['all', 'All']]" :key="k" type="button" role="tab" :aria-selected="ui.reqTab === k ? 'true' : 'false'" @click="ui.reqTab = k">{{ n }} <span class="text-3 tnum">{{ counts[k] }}</span></button>
-    </div>
-  </div>
-  <section class="surface">
-    <div v-if="!list.length" class="empty">
-      <i class="bi bi-inbox" aria-hidden="true"></i>
-      <h3>{{ ui.reqTab === 'pending' ? 'No requests waiting' : 'No ' + (ui.reqTab === 'all' ? '' : ui.reqTab + ' ') + 'requests yet' }}</h3>
-      <p>Add leave or an RDO swap here to check its effect on cover before it goes on the roster.</p>
-      <button type="button" class="btn btn-primary" @click="openRequest()">Add a request</button>
-    </div>
-    <div v-for="q in page" :key="q.id" class="req" :class="{ pending: q.status === 'pending' }">
-      <span class="avatar" aria-hidden="true">{{ initials(nameOf(q.pid)) }}</span>
-      <div class="min-w-0">
-        <div class="title">{{ nameOf(q.pid) }} · {{ typeLabel(q.type) }} <span v-if="q.status !== 'pending'" class="badge-s ms-1" :class="q.status === 'approved' ? 'ok' : ''">{{ q.status === 'approved' ? 'Approved' : 'Declined' }}</span><span v-if="q.byFix" class="badge-s ms-1 accent">Cover fix</span></div>
-        <div class="when">{{ q.type === 'swap' ? 'RDO ' + nice(q.from) + ' moves to ' + nice(q.to) : range(q.from, q.to) + ' · ' + plural(days(q), 'weekday') }}<span v-if="q.note"> · {{ q.note }}</span></div>
-        <template v-if="q.status === 'pending'">
-          <div v-if="!inRoster(q)" class="imp text-3"><i class="bi bi-calendar-x" aria-hidden="true"></i>Outside the planned rosters. Plan the next roster to check cover.</div>
-          <div v-else-if="impactOf(q).invalid" class="imp bad"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>Can't apply: {{ impactOf(q).invalid.toLowerCase() }}.</div>
-          <div v-else-if="impactOf(q).safe && !impactOf(q).warn" class="imp ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Safe to approve. Cover stays OK.</div>
-          <div v-else-if="impactOf(q).warn" class="imp warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>Cover stays OK. {{ impactOf(q).added[0].title }}: move that RDO after approving.</span></div>
-          <div v-else class="imp bad"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i><span>{{ impactOf(q).added[0].title }}. {{ impactOf(q).added[0].detail }}<span v-if="impactOf(q).added.length > 1"> Plus {{ plural(impactOf(q).added.length - 1, 'more problem') }}.</span></span></div>
-        </template>
-        <div v-if="overlaps(q).length" class="imp warn"><i class="bi bi-people" aria-hidden="true"></i><span>Overlaps with {{ overlaps(q).map(x => nameOf(x.pid) + (x.status === 'pending' ? ' (pending)' : '')).join(', ') }}. Each request is checked on its own.</span></div>
-        <div class="meta mt-1">Added {{ ago(q.createdAt || Date.now()) }}<span v-if="q.decidedAt"> · decided {{ ago(q.decidedAt) }}</span></div>
-      </div>
-      <div class="acts">
-        <template v-if="q.status === 'pending'">
-          <button v-if="canFix(q)" type="button" class="btn btn-primary" @click="act('approveAndFix', q)"><i class="bi bi-magic" aria-hidden="true"></i>Approve and fix cover</button>
-          <button type="button" :class="['btn', canFix(q) || (impactOf(q) && !impactOf(q).safe) ? 'btn-quiet' : 'btn-primary']" @click="act('decide', q, 'approved')">Approve</button>
-          <button type="button" class="btn btn-quiet" @click="act('decide', q, 'declined')">Decline</button>
-        </template>
-        <button v-else type="button" class="btn btn-quiet" @click="act('decide', q, 'pending')">Move to pending</button>
-        <button type="button" class="btn btn-quiet btn-icon" v-tip="'Delete request'" @click="act('deleteRequest', q)"><i class="bi bi-trash3" aria-hidden="true"></i></button>
-      </div>
-    </div>
-    <div class="pager">
-      <span class="tnum">{{ list.length ? (ui.reqPage * pageSize + 1) + ' to ' + Math.min(list.length, (ui.reqPage + 1) * pageSize) + ' of ' + list.length : '0 requests' }}</span>
-      <span class="d-flex gap-2">
-        <button type="button" class="btn btn-quiet" :disabled="ui.reqPage === 0" @click="ui.reqPage--"><i class="bi bi-chevron-left" aria-hidden="true"></i>Previous</button>
-        <button type="button" class="btn btn-quiet" :disabled="(ui.reqPage + 1) * pageSize >= list.length" @click="ui.reqPage++">Next<i class="bi bi-chevron-right" aria-hidden="true"></i></button>
-      </span>
-    </div>
-  </section>
-</div>
-</script>
-
-<!-- ================= Team (Pattern 1: List) ================= -->
+<!-- Team (Pattern 1: List, edited in place) -->
 <script type="text/x-template" id="tpl-team">
 <div>
   <div class="page-head">
-    <div>
-      <h1 tabindex="-1">Team</h1>
-      <p class="lede">Who's on the {{ periodLabel(period) }} roster, with their totals. Changes carry into rosters you plan after this one.</p>
-    </div>
-    <div class="actions"><button type="button" class="btn btn-primary" @click="openPerson(null)"><i class="bi bi-person-plus" aria-hidden="true"></i>Add person</button></div>
-  </div>
-  <div class="toolbar">
-    <div class="search">
-      <label for="team-search" class="lbl-wide">Search team</label>
-      <div class="field"><i class="bi bi-search" aria-hidden="true"></i><input id="team-search" data-search type="search" class="form-control" v-model="ui.teamSearch" placeholder="Name or role" autocomplete="off" @input="ui.teamPage = 0"><kbd v-if="!ui.teamSearch" aria-hidden="true">/</kbd></div>
-    </div>
-    <div class="filters position-relative">
-      <button type="button" class="btn btn-quiet" :aria-expanded="ui.teamFiltersOpen ? 'true' : 'false'" aria-controls="team-filters" @click="ui.teamFiltersOpen = !ui.teamFiltersOpen"><i class="bi bi-funnel" aria-hidden="true"></i>Filters<span v-if="ui.teamGroups.length" class="count-badge">{{ ui.teamGroups.length }}</span></button>
-      <div v-if="ui.teamFiltersOpen" id="team-filters" class="pop" style="top: 48px; left: 0">
-        <div class="pop-sec">Group</div>
-        <label v-for="g in ['leader', 'senior', 'analyst']" :key="g" class="menu-item"><input type="checkbox" class="form-check-input m-0" :checked="ui.teamGroups.includes(g)" @change="toggleGroup(g)">{{ groupPlural(g) }}</label>
-      </div>
-    </div>
-    <span class="grow"></span>
-    <button type="button" class="btn btn-quiet btn-icon" v-tip="'Download team list (CSV)'" @click="exportTeam"><i class="bi bi-download" aria-hidden="true"></i></button>
-  </div>
-  <div class="chips" v-if="ui.teamGroups.length">
-    <span v-for="g in ui.teamGroups" :key="g" class="chip">{{ groupPlural(g) }}<button type="button" v-tip="'Remove ' + groupPlural(g) + ' filter'" @click="toggleGroup(g)"><i class="bi bi-x" aria-hidden="true"></i></button></span>
-    <button type="button" class="btn btn-link-quiet" @click="ui.teamGroups = []">Clear all filters</button>
+    <div><h1 tabindex="-1">Team</h1><p class="lede">Who is on the roster. Changes save as you leave each field. Leave a name blank to show the role as Vacant.</p></div>
+    <div class="actions"><button type="button" class="btn btn-primary" @click="add('analyst')"><i class="bi bi-person-plus" aria-hidden="true"></i>Add analyst</button></div>
   </div>
   <section class="surface">
     <div class="grid-wrap">
-      <table class="dtable">
-        <thead>
-          <tr>
-            <th scope="col" :aria-sort="ariaSort('name')"><button type="button" class="sortbtn" @click="sort('name')">Name <i class="bi" :class="sortIcon('name')" aria-hidden="true"></i></button></th>
-            <th scope="col" :aria-sort="ariaSort('order')"><button type="button" class="sortbtn" @click="sort('order')">Role and group <i class="bi" :class="sortIcon('order')" aria-hidden="true"></i></button></th>
-            <th scope="col">Shift pattern</th>
-            <th scope="col" class="num" :aria-sort="ariaSort('worked')"><button type="button" class="sortbtn" @click="sort('worked')">Days worked <i class="bi" :class="sortIcon('worked')" aria-hidden="true"></i></button></th>
-            <th scope="col" class="num" :aria-sort="ariaSort('leave')"><button type="button" class="sortbtn" @click="sort('leave')">Leave <i class="bi" :class="sortIcon('leave')" aria-hidden="true"></i></button></th>
-            <th scope="col" class="num" :aria-sort="ariaSort('fd')"><button type="button" class="sortbtn" @click="sort('fd')">{{ L.fd }} <i class="bi" :class="sortIcon('fd')" aria-hidden="true"></i></button></th>
-            <th scope="col" class="num" :aria-sort="ariaSort('seat')"><button type="button" class="sortbtn" @click="sort('seat')">{{ eff.rules.siteB.label }} days <i class="bi" :class="sortIcon('seat')" aria-hidden="true"></i></button></th>
-            <th scope="col" class="num" :aria-sort="ariaSort('ocWeeks')"><button type="button" class="sortbtn" @click="sort('ocWeeks')">{{ L.oc }} wks <i class="bi" :class="sortIcon('ocWeeks')" aria-hidden="true"></i></button></th>
-            <th scope="col"><span class="visually-hidden">Open</span></th>
-          </tr>
-        </thead>
+      <table class="dtable team-edit">
+        <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Group</th><th scope="col">Shift pattern</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
         <tbody>
-          <tr v-for="r in page" :key="r.p.id" class="rowlink" @click="go('person-' + r.p.id)">
-            <td><a class="primary" :href="'#person-' + r.p.id" @click.stop :class="{ 'text-danger': v(r.p) === 'Vacant' }">{{ v(r.p) }}</a><span v-if="r.issues" class="badge-s bad ms-2">{{ plural(r.issues, 'problem') }}</span></td>
-            <td>{{ r.p.role }}<div class="meta">{{ groupName(r.p.group) }}</div></td>
-            <td class="text-2">{{ patternName(r.p.pattern) }}</td>
-            <td class="num mono">{{ r.t.worked }}</td>
-            <td class="num mono">{{ r.t.leave }}</td>
-            <td class="num mono" :class="{ 'text-3': r.p.group !== 'analyst' }">{{ r.p.group === 'analyst' ? r.t.fd : 'n/a' }}</td>
-            <td class="num mono" :class="{ 'text-3': r.p.group !== 'analyst' }">{{ r.p.group === 'analyst' ? r.t.seat : 'n/a' }}</td>
-            <td class="num mono" :class="{ 'text-3': r.p.group === 'leader' }">{{ r.p.group === 'leader' ? 'n/a' : r.t.ocWeeks }}</td>
-            <td class="chev"><i class="bi bi-chevron-right" aria-hidden="true"></i></td>
+          <tr v-for="p in people" :key="p.id">
+            <td><label class="visually-hidden" :for="'name-' + p.id">Name for {{ p.role }}</label><input :id="'name-' + p.id" class="form-control" :value="p.name" placeholder="Vacant" maxlength="40" autocomplete="off" @change="setField(p, 'name', $event)"></td>
+            <td><label class="visually-hidden" :for="'role-' + p.id">Role</label><input :id="'role-' + p.id" class="form-control" :class="{ 'is-invalid': errs[p.id] }" :value="p.role" maxlength="40" @blur="setField(p, 'role', $event)" @input="clearErr(p)"><div class="invalid-msg" v-if="errs[p.id]">{{ errs[p.id] }}</div></td>
+            <td><label class="visually-hidden" :for="'grp-' + p.id">Group for {{ p.role }}</label><select :id="'grp-' + p.id" class="form-select" :value="p.group" @change="setField(p, 'group', $event)"><option value="leader">Lead (no rotations)</option><option value="senior">Senior (on call)</option><option value="analyst">Analyst (front desk, seats)</option></select></td>
+            <td><label class="visually-hidden" :for="'pat-' + p.id">Shift pattern for {{ p.role }}</label><select :id="'pat-' + p.id" class="form-select" :value="p.pattern" @change="setField(p, 'pattern', $event)"><option value="alt">Swaps each pay period</option><option value="early">Always {{ cfg.shifts.early }}</option><option value="late">Always {{ cfg.shifts.late }}</option></select></td>
+            <td class="text-end"><button type="button" class="btn btn-quiet btn-icon" v-tip="'Remove ' + v(p)" @click="remove(p)"><i class="bi bi-trash3" aria-hidden="true"></i></button></td>
           </tr>
-          <tr v-if="!rows.length && (ui.teamSearch || ui.teamGroups.length)"><td colspan="9" class="p-0"><div class="empty"><h3>No one matches</h3><p>Nobody fits that search or filter.</p><button type="button" class="btn btn-quiet" @click="ui.teamSearch = ''; ui.teamGroups = []">Clear all filters</button></div></td></tr>
-          <tr v-else-if="!rows.length"><td colspan="9" class="p-0"><div class="empty"><h3>No one on this roster yet</h3><p>Add the people you roster so cover and rotations can be planned.</p><button type="button" class="btn btn-primary" @click="openPerson(null)">Add person</button></div></td></tr>
+          <tr v-if="!people.length"><td colspan="5" class="p-0"><div class="empty"><h3>No one on the roster yet</h3><p>Add the people you roster so cover and rotations can be planned.</p><button type="button" class="btn btn-primary" @click="add('analyst')">Add analyst</button></div></td></tr>
         </tbody>
       </table>
     </div>
-    <div class="pager">
-      <span class="tnum">{{ rows.length ? (ui.teamPage * pageSize + 1) + ' to ' + Math.min(rows.length, (ui.teamPage + 1) * pageSize) + ' of ' + rows.length : '0 people' }}</span>
-      <span class="d-flex gap-2">
-        <button type="button" class="btn btn-quiet" :disabled="ui.teamPage === 0" @click="ui.teamPage--"><i class="bi bi-chevron-left" aria-hidden="true"></i>Previous</button>
-        <button type="button" class="btn btn-quiet" :disabled="(ui.teamPage + 1) * pageSize >= rows.length" @click="ui.teamPage++">Next<i class="bi bi-chevron-right" aria-hidden="true"></i></button>
-      </span>
-    </div>
+    <div class="pager"><span>{{ plural(people.length, 'person', 'people') }}</span><span class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-quiet" @click="add('senior')">Add senior</button><button type="button" class="btn btn-quiet" @click="add('leader')">Add lead</button></span></div>
   </section>
-  <p class="meta mt-3" v-if="data.sample">Sample team with made-up names. Edit or replace them; nothing leaves this browser.</p>
+  <p class="meta mt-3">The sample team uses made-up names. After adding people, re-plan RDOs on the Roster page.</p>
 </div>
 </script>
 
-<!-- ================= Person (Pattern 2: Detail) ================= -->
-<script type="text/x-template" id="tpl-person">
+<!-- Leave and RDO changes (Pattern 3: Form page with its list) -->
+<script type="text/x-template" id="tpl-leave">
 <div>
-  <div v-if="!p" class="surface empty">
-    <h1 tabindex="-1" class="h3">Person not on this roster</h1>
-    <p>They may have been removed, or belong to another roster period.</p>
-    <a class="btn btn-primary" href="#team">Go to team</a>
+  <div class="page-head"><div><h1 tabindex="-1">Leave and RDOs</h1><p class="lede">Record approved leave and RDO moves. They show on the roster and go into the Excel file. You can also make these changes in Excel.</p></div></div>
+  <div class="two-col">
+    <section class="surface" aria-labelledby="lv-h">
+      <div class="section-pad"><h2 id="lv-h">Leave</h2>
+        <form class="addform" novalidate @submit.prevent="addLeave">
+          <div><label class="form-label" for="lv-pid">Person</label><select id="lv-pid" class="form-select" v-model="lf.pid"><option v-for="p in people" :key="p.id" :value="p.id">{{ v(p) }}</option></select></div>
+          <div><label class="form-label" for="lv-from">First day</label><input id="lv-from" type="date" class="form-control" v-model="lf.from" :min="minD" :max="maxD" :class="{ 'is-invalid': lt.from && lErr.from }" @blur="lt.from = true" @focus="lt.from = false"><div class="invalid-msg" v-if="lt.from && lErr.from">{{ lErr.from }}</div></div>
+          <div><label class="form-label" for="lv-to">Last day</label><input id="lv-to" type="date" class="form-control" v-model="lf.to" :min="lf.from || minD" :max="maxD" :class="{ 'is-invalid': lt.to && lErr.to }" @blur="lt.to = true" @focus="lt.to = false"><div class="invalid-msg" v-if="lt.to && lErr.to">{{ lErr.to }}</div></div>
+          <div><label class="form-label" for="lv-note">Note <span class="text-3">(optional)</span></label><input id="lv-note" class="form-control" v-model="lf.note" maxlength="80" placeholder="Annual leave"></div>
+          <div class="addbtn"><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add leave</button></div>
+        </form>
+      </div>
+      <table class="dtable">
+        <thead><tr><th scope="col">Person</th><th scope="col">Days</th><th scope="col">Note</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
+        <tbody>
+          <tr v-for="l in cfg.leave" :key="l.id"><td>{{ name(l.pid) }}</td><td class="tnum">{{ nice(l.from) }}<span v-if="l.to && l.to !== l.from"> to {{ nice(l.to) }}</span></td><td class="text-2">{{ l.note }}</td><td class="text-end"><button type="button" class="btn btn-quiet btn-icon" v-tip="'Remove ' + name(l.pid) + '\'s leave'" @click="removeLeave(l)"><i class="bi bi-trash3" aria-hidden="true"></i></button></td></tr>
+          <tr v-if="!cfg.leave.length"><td colspan="4" class="text-2">No leave recorded. Add it above, or select a cell on the roster and choose Mark as leave.</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="surface" aria-labelledby="sw-h">
+      <div class="section-pad"><h2 id="sw-h">RDO moves</h2>
+        <form class="addform" novalidate @submit.prevent="addSwap">
+          <div><label class="form-label" for="sw-pid">Person</label><select id="sw-pid" class="form-select" v-model="sf.pid" @change="pickSwapPerson"><option v-for="p in people" :key="p.id" :value="p.id">{{ v(p) }}</option></select></div>
+          <div><label class="form-label" for="sw-from">Move this RDO</label><select id="sw-from" class="form-select" v-model="sf.from" :class="{ 'is-invalid': st.from && sErr.from }"><option v-for="d in rdoDates" :key="d" :value="d">{{ nice(d) }}</option></select><div class="invalid-msg" v-if="st.from && sErr.from">{{ sErr.from }}</div></div>
+          <div><label class="form-label" for="sw-to">To</label><input id="sw-to" type="date" class="form-control" v-model="sf.to" :min="minD" :max="maxD" :class="{ 'is-invalid': st.to && sErr.to }" @blur="st.to = true" @focus="st.to = false"><div class="invalid-msg" v-if="st.to && sErr.to">{{ sErr.to }}</div></div>
+          <div><label class="form-label" for="sw-why">Reason <span class="text-3">(optional)</span></label><input id="sw-why" class="form-control" v-model="sf.reason" maxlength="80" placeholder="Approved by team leader"></div>
+          <div class="addbtn"><button type="submit" class="btn btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i>Move RDO</button></div>
+        </form>
+      </div>
+      <table class="dtable">
+        <thead><tr><th scope="col">Person</th><th scope="col">Move</th><th scope="col">Check</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
+        <tbody>
+          <tr v-for="s in swaps" :key="s.id"><td>{{ name(s.pid) }}</td><td class="tnum">{{ nice(s.from) }} to {{ nice(s.to) }}</td><td><span class="badge-s" :class="s.status === 'OK' ? 'ok' : s.status.startsWith('OK') ? 'warn' : 'bad'">{{ s.status }}</span></td><td class="text-end"><button type="button" class="btn btn-quiet btn-icon" v-tip="'Remove ' + name(s.pid) + '\'s RDO move'" @click="removeSwap(s)"><i class="bi bi-trash3" aria-hidden="true"></i></button></td></tr>
+          <tr v-if="!swaps.length"><td colspan="4" class="text-2">No RDO moves. Use the form above when someone needs a different day off.</td></tr>
+        </tbody>
+      </table>
+    </section>
   </div>
-  <template v-else>
-    <div class="crumbs"><a href="#team">Team</a> › {{ v(p) }}</div>
-    <div class="page-head">
-      <div>
-        <h1 tabindex="-1">{{ v(p) }}</h1>
-        <div class="metaline"><span>{{ p.role }}</span><span>{{ groupName(p.group) }}</span><span>{{ patternName(p.pattern) }}</span><span v-if="v(p) === 'Vacant'" class="badge-s bad">Vacant</span><span class="tnum">{{ periodLabel(period) }}</span></div>
-      </div>
-      <div class="actions">
-        <button type="button" class="btn btn-quiet" @click="act('exportIcs', p.id)"><i class="bi bi-calendar-event" aria-hidden="true"></i>Download calendar</button>
-        <button type="button" class="btn btn-quiet" @click="openRequest({ pid: p.id })"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add request</button>
-        <button type="button" class="btn btn-primary" @click="openPerson(p)"><i class="bi bi-pencil" aria-hidden="true"></i>Edit details</button>
-      </div>
-    </div>
-    <div class="tabs" role="tablist" aria-label="Sections">
-      <button v-for="[k, n] in [['shifts', 'Shifts'], ['requests', 'Requests (' + reqs.length + ')'], ['totals', 'Totals']]" :key="k" type="button" role="tab" :aria-selected="ui.personTab === k ? 'true' : 'false'" @click="ui.personTab = k">{{ n }}</button>
-    </div>
-    <section v-if="ui.personTab === 'shifts'" class="surface">
-      <div class="grid-wrap">
-        <table class="dtable">
-          <thead><tr><th scope="col">Day</th><th scope="col">Shift</th><th scope="col">Duties</th><th scope="col">Notes</th></tr></thead>
-          <tbody>
-            <template v-for="row in rows" :key="row.d.iso">
-              <tr v-if="row.d.dow === 1" class="weekrow"><td colspan="4">Week {{ row.d.w + 1 }} · pay period {{ row.d.f + 1 }}</td></tr>
-              <tr>
-              <td class="tnum"><span class="fw-semibold">{{ E.DAYS[row.d.dow - 1] }}</span> {{ fmt(row.d.iso) }}</td>
-              <td><span class="badge-s mono" :style="{ background: 'var(--' + cellClass(row.v).slice(2) + ')' }">{{ row.v }}</span></td>
-              <td class="text-2">{{ row.duties.join(', ') }}</td>
-              <td class="text-2">{{ row.notes.join('. ') }}</td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-    </section>
-    <section v-if="ui.personTab === 'requests'" class="surface">
-      <div v-if="!reqs.length" class="empty"><h3>No requests for {{ v(p) }}</h3><p>Leave and RDO swaps for {{ v(p) }} will show here.</p><button type="button" class="btn btn-primary" @click="openRequest({ pid: p.id })">Add a request</button></div>
-      <div v-for="q in reqs" :key="q.id" class="feed-item">
-        <div><b>{{ typeLabel(q.type) }}</b> · {{ q.type === 'swap' ? nice(q.from) + ' to ' + nice(q.to) : range(q.from, q.to) }}<span v-if="q.note" class="text-2"> · {{ q.note }}</span></div>
-        <span class="badge-s" :class="q.status === 'approved' ? 'ok' : q.status === 'pending' ? 'warn' : ''">{{ q.status === 'approved' ? 'Approved' : q.status === 'pending' ? 'Pending' : 'Declined' }}</span>
-      </div>
-    </section>
-    <section v-if="ui.personTab === 'totals'" class="surface">
-      <div class="kv">
-        <div><div class="k">Days worked</div><div class="v tnum">{{ t.worked }}</div><div class="s">{{ groupPlural(p.group) }} average {{ avg.worked.toFixed(1) }}</div></div>
-        <div><div class="k">On {{ eff.shifts.early }}</div><div class="v tnum">{{ t.early }}</div><div class="s">On {{ eff.shifts.late }}: {{ t.late }}</div></div>
-        <div><div class="k">RDOs</div><div class="v tnum">{{ t.rdo }}</div><div class="s">1 per pay period expected</div></div>
-        <div><div class="k">Leave days</div><div class="v tnum">{{ t.leave }}</div><div class="s">Approved only</div></div>
-        <div v-if="p.group === 'analyst'"><div class="k">{{ L.fd }}</div><div class="v tnum">{{ t.fd }}</div><div class="s">Analyst average {{ avg.fd.toFixed(1) }}</div></div>
-        <div v-if="p.group === 'analyst'"><div class="k">{{ eff.rules.siteB.label }} days</div><div class="v tnum">{{ t.seat }}</div><div class="s">Analyst average {{ avg.seat.toFixed(1) }}</div></div>
-        <div v-if="p.group !== 'leader'"><div class="k">{{ L.oc }} weeks</div><div class="v tnum">{{ t.ocWeeks }}</div><div class="s">Group average {{ avg.ocWeeks.toFixed(1) }}</div></div>
-        <div><div class="k">Single-day changes</div><div class="v tnum">{{ t.changed }}</div><div class="s">Made on the roster grid</div></div>
-      </div>
-    </section>
-    <div class="danger-zone">
-      <h3>Remove from roster</h3>
-      <div class="danger-row"><span class="text-2 small-2">{{ v(p) }} comes off this roster and any you plan after it. Earlier rosters keep them.</span><button type="button" class="btn btn-danger-quiet" @click="act('removePerson', p)">Remove {{ v(p) }}</button></div>
-    </div>
-  </template>
 </div>
 </script>
 
-<!-- ================= Review (Pattern 2: Detail of the roster period) ================= -->
-<script type="text/x-template" id="tpl-review">
-<div>
-  <div class="crumbs"><a href="#roster">Roster</a> › Review</div>
-  <div class="page-head">
-    <div>
-      <h1 tabindex="-1">{{ period.title }}: {{ periodLabel(period) }}</h1>
-      <div class="metaline">
-        <span class="badge-s" :class="period.status === 'final' ? 'ok' : ''">{{ period.status === 'final' ? 'Final' : 'Draft' }}</span>
-        <span v-if="ready" class="badge-s ok"><i class="bi bi-check2" aria-hidden="true"></i>Ready to share</span>
-        <span v-else class="badge-s bad">Needs attention</span>
-        <span>{{ plural(R.ro.length, 'person', 'people') }}</span><span>{{ plural(period.weeks / 2, 'pay period') }}</span><span>Last change {{ lastChange }}</span>
-      </div>
-    </div>
-    <div class="actions">
-      <button v-if="period.status === 'final'" type="button" class="btn btn-quiet" @click="act('reopen')">Reopen as draft</button>
-      <button v-else type="button" class="btn btn-primary" @click="act('finalise')"><i class="bi bi-check2-circle" aria-hidden="true"></i>Mark as final</button>
-    </div>
-  </div>
-  <div class="tabs" role="tablist" aria-label="Sections">
-    <button v-for="[k, n] in [['checks', 'Checks'], ['pay', 'Pay periods'], ['fair', 'Fairness'], ['changes', 'Changes'], ['export', 'Export']]" :key="k" type="button" role="tab" :aria-selected="ui.reviewTab === k ? 'true' : 'false'" @click="ui.reviewTab = k">{{ n }}</button>
-  </div>
-
-  <section v-if="ui.reviewTab === 'checks'" class="surface">
-    <div v-for="c in checks" :key="c.t" class="check-row">
-      <i class="bi" :class="c.ok ? 'bi-check-circle-fill' : c.warn ? 'bi-dash-circle' : 'bi-exclamation-circle-fill'" aria-hidden="true"></i>
-      <div><div class="t">{{ c.t }}</div><div class="d">{{ c.d }}</div></div>
-      <a v-if="!c.ok" class="btn btn-quiet" :href="'#' + c.go">{{ c.go === 'requests' ? 'Open requests' : c.go === 'team' ? 'Open team' : 'Open roster' }}</a>
-    </div>
-  </section>
-
-  <section v-if="ui.reviewTab === 'pay'" class="stack d-grid gap-3">
-    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between"><p class="text-2 mb-0 prose">What payroll needs for each pay period. Leave counts approved requests only.</p><button type="button" class="btn btn-quiet" @click="act('exportPayroll')"><i class="bi bi-download" aria-hidden="true"></i>Download payroll CSV</button></div>
-    <div v-for="pp in payroll" :key="pp.f" class="surface">
-      <div class="issues-head"><div class="title">Pay period {{ pp.f + 1 }} <span class="text-3 fw-normal tnum">{{ nice(pp.from) }} to {{ nice(pp.to) }}</span></div></div>
-      <div class="grid-wrap">
-        <table class="dtable">
-          <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col" class="num">Days worked</th><th scope="col" class="num">RDO</th><th scope="col" class="num">Leave days</th><th scope="col" class="num">Single-day changes</th></tr></thead>
-          <tbody><tr v-for="r in pp.rows" :key="r.p.id"><td><a class="primary" :href="'#person-' + r.p.id">{{ v(r.p) }}</a></td><td class="text-2">{{ r.p.role }}</td><td class="num mono">{{ r.worked }}</td><td class="num mono" :class="{ 'text-danger fw-semibold': r.rdo !== 1 }">{{ r.rdo }}</td><td class="num mono">{{ r.leave }}</td><td class="num mono">{{ r.changed }}</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section v-if="ui.reviewTab === 'fair'" class="d-grid gap-3">
-    <p class="text-2 mb-0 prose">How duties are spread within each group this roster. Highlighted numbers are well above or below the group average.</p>
-    <div v-for="g in fairness" :key="g.g" class="surface">
-      <div class="issues-head"><div class="title">{{ groupPlural(g.g) }}</div></div>
-      <div class="grid-wrap">
-        <table class="dtable">
-          <thead><tr><th scope="col">Name</th><th scope="col" class="num">On {{ eff.shifts.early }}</th><th scope="col" class="num">On {{ eff.shifts.late }}</th><th scope="col" class="num" v-if="g.g === 'analyst'">{{ L.fd }}</th><th scope="col" class="num" v-if="g.g === 'analyst'">{{ eff.rules.siteB.label }} days</th><th scope="col" class="num" v-if="g.g !== 'leader'">{{ L.oc }} weeks</th></tr></thead>
-          <tbody>
-            <tr v-for="r in g.rows" :key="r.p.id"><td><a class="primary" :href="'#person-' + r.p.id">{{ v(r.p) }}</a></td><td class="num mono" :class="{ 'fair-hi': r.hi.early }">{{ r.t.early }}</td><td class="num mono">{{ r.t.late }}</td><td class="num mono" v-if="g.g === 'analyst'" :class="{ 'fair-hi': r.hi.fd }">{{ r.t.fd }}</td><td class="num mono" v-if="g.g === 'analyst'" :class="{ 'fair-hi': r.hi.seat }">{{ r.t.seat }}</td><td class="num mono" v-if="g.g !== 'leader'" :class="{ 'fair-hi': r.hi.oc }">{{ r.t.ocWeeks }}</td></tr>
-            <tr class="text-3"><td>Average</td><td class="num mono">{{ g.m.early.toFixed(1) }}</td><td class="num mono"></td><td class="num mono" v-if="g.g === 'analyst'">{{ g.m.fd.toFixed(1) }}</td><td class="num mono" v-if="g.g === 'analyst'">{{ g.m.seat.toFixed(1) }}</td><td class="num mono" v-if="g.g !== 'leader'">{{ g.m.ocWeeks.toFixed(1) }}</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <section v-if="ui.reviewTab === 'changes'" class="surface">
-    <div v-if="!feed.length" class="empty"><h3>No changes yet</h3><p>Every change to this roster is listed here, so you know what to tell the team.</p><a class="btn btn-primary" href="#roster">Open roster</a></div>
-    <div v-for="(e, k) in feed" :key="k" class="feed-item"><span>{{ e.text }}<span v-if="e.afterFinal" class="badge-s warn ms-2">After final</span></span><span class="time">{{ ago(e.at) }}</span></div>
-    <div v-if="period.log.length > feed.length" class="p-2"><button type="button" class="btn btn-link-quiet" @click="ui.feedMore++">Load more</button></div>
-  </section>
-
-  <section v-if="ui.reviewTab === 'export'" class="surface">
-    <div class="export-row"><i class="bi bi-clipboard" aria-hidden="true"></i><div><b>Copy roster table</b><div class="d">A coloured table to paste into an email or Teams message.</div></div><button type="button" class="btn btn-quiet" @click="act('copyTable')">Copy table</button></div>
-    <div class="export-row"><i class="bi bi-filetype-csv" aria-hidden="true"></i><div><b>Payroll summary</b><div class="d">Days worked, RDOs, leave by type and single-day changes, per person per pay period.</div></div><button type="button" class="btn btn-quiet" @click="act('exportPayroll')">Download CSV</button></div>
-    <div class="export-row"><i class="bi bi-calendar-event" aria-hidden="true"></i><div><b>Staff calendars</b><div class="d">Each person can add their shifts to Outlook or their phone. Open a person from the Team page and choose Download calendar.</div></div><a class="btn btn-quiet" href="#team">Open team</a></div>
-    <div class="export-row"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i><div><b>Excel workbook</b><div class="d">The full roster with live formulas, dropdowns and the same cover checks, for anyone who works in Excel. It reopens in this app.</div></div><button type="button" class="btn btn-quiet" @click="act('exportXlsx')" :aria-busy="ui.busy === 'xlsx' ? 'true' : 'false'"><span v-if="ui.busy === 'xlsx'" class="spinner-border spinner-border-sm" aria-hidden="true"></span>Download workbook</button></div>
-  </section>
-</div>
-</script>
-
-<!-- ================= Settings (Pattern 5) ================= -->
+<!-- Settings (Pattern 5) -->
 <script type="text/x-template" id="tpl-settings">
 <div>
-  <div class="page-head"><div><h1 tabindex="-1">Settings</h1><p class="lede">How the {{ periodLabel(period) }} roster works. Rosters you plan next copy these.</p></div></div>
-  <div class="settings" v-if="f">
-    <nav aria-label="Settings sections"><button v-for="[k, n] in sections" :key="k" type="button" :aria-current="ui.settings === k ? 'true' : 'false'" @click="goSection(k)">{{ n }}</button></nav>
-    <div class="navsel mb-2"><label class="form-label" for="set-nav">Section</label><select id="set-nav" class="form-select" v-model="ui.settings"><option v-for="[k, n] in sections" :key="k" :value="k">{{ n }}</option></select></div>
-    <section class="surface section" aria-labelledby="sec-h">
-      <template v-if="ui.settings === 'period'">
-        <h2 id="sec-period" tabindex="-1">Roster period</h2><p class="text-2 prose">The name, first Monday and length of this roster. Pay periods are 2 weeks each.</p>
-        <div class="fields">
-          <div><label class="form-label" for="set-title">Roster name</label><input id="set-title" class="form-control" v-model="f.title" :class="{ 'is-invalid': err('title') }" @blur="blur('title')" @focus="focusField('title')" maxlength="60"><div class="invalid-msg" v-if="err('title')">{{ errors.title }}</div></div>
-          <div><label class="form-label" for="set-start">First Monday</label><input id="set-start" type="date" class="form-control" v-model="f.start" :class="{ 'is-invalid': err('start') }" @blur="blur('start')" @focus="focusField('start')"><div class="invalid-msg" v-if="err('start')">{{ errors.start }}</div><div class="form-text" v-else-if="startMoved">That's not a Monday, so the roster will start on {{ nice(startMoved) }}.</div></div>
-          <div><label class="form-label" for="set-weeks">Length</label><select id="set-weeks" class="form-select" v-model.number="f.weeks"><option v-for="w in [2, 4, 6, 8]" :key="w" :value="w">{{ w }} weeks ({{ plural(w / 2, 'pay period') }})</option></select></div>
+  <div class="page-head"><div><h1 tabindex="-1">Settings</h1><p class="lede">How this roster works. These also go into the Setup sheet of the Excel file.</p></div></div>
+  <form class="surface section" novalidate @submit.prevent="save">
+    <div class="set-group"><h2>Roster</h2>
+      <div class="fields two">
+        <div><label class="form-label" for="set-title">Roster name</label><input id="set-title" class="form-control" v-model="f.title" maxlength="60" :class="{ 'is-invalid': err('title') }" @blur="t.title = true" @focus="t.title = false"><div class="invalid-msg" v-if="err('title')">{{ errors.title }}</div></div>
+        <div><label class="form-label" for="set-start">First Monday</label><input id="set-start" type="date" class="form-control" v-model="f.start" :class="{ 'is-invalid': err('start') }" @blur="t.start = true" @focus="t.start = false"><div class="invalid-msg" v-if="err('start')">{{ errors.start }}</div><div class="form-text" v-else-if="moved">Not a Monday, so it starts {{ nice(moved) }}.</div></div>
+        <div><label class="form-label" for="set-weeks">Length</label><select id="set-weeks" class="form-select" v-model.number="f.weeks"><option v-for="w in [2, 4, 6, 8]" :key="w" :value="w">{{ w }} weeks</option></select></div>
+      </div>
+    </div>
+    <div class="set-group"><h2>Shifts and daily cover</h2>
+      <div class="fields two">
+        <div><label class="form-label" for="set-early">Early shift code</label><input id="set-early" class="form-control mono" v-model="f.early" maxlength="12" :class="{ 'is-invalid': err('early') }" @blur="t.early = true" @focus="t.early = false"><div class="invalid-msg" v-if="err('early')">{{ errors.early }}</div></div>
+        <div><label class="form-label" for="set-late">Late shift code</label><input id="set-late" class="form-control mono" v-model="f.late" maxlength="12" :class="{ 'is-invalid': err('late') }" @blur="t.late = true" @focus="t.late = false"><div class="invalid-msg" v-if="err('late')">{{ errors.late }}</div></div>
+        <div><label class="form-label" for="set-minEarly">Minimum on early</label><input id="set-minEarly" type="number" min="0" class="form-control" v-model="f.minEarly" :class="{ 'is-invalid': err('minEarly') }" @blur="t.minEarly = true" @focus="t.minEarly = false"><div class="invalid-msg" v-if="err('minEarly')">{{ errors.minEarly }}</div></div>
+        <div><label class="form-label" for="set-minLate">Minimum on late</label><input id="set-minLate" type="number" min="0" class="form-control" v-model="f.minLate" :class="{ 'is-invalid': err('minLate') }" @blur="t.minLate = true" @focus="t.minLate = false"><div class="invalid-msg" v-if="err('minLate')">{{ errors.minLate }}</div></div>
+        <div><label class="form-label" for="set-minSenior">Minimum seniors on duty</label><input id="set-minSenior" type="number" min="0" class="form-control" v-model="f.minSenior" :class="{ 'is-invalid': err('minSenior') }" @blur="t.minSenior = true" @focus="t.minSenior = false"><div class="invalid-msg" v-if="err('minSenior')">{{ errors.minSenior }}</div></div>
+      </div>
+    </div>
+    <div class="set-group"><h2>Rotations</h2><p class="text-2 small-2 prose">Analyst numbers follow the order on the Team page.</p>
+      <div class="rot-set">
+        <div class="form-check form-switch"><input id="set-fdOn" class="form-check-input" type="checkbox" role="switch" v-model="f.fdOn"><label class="form-check-label fw-semibold" for="set-fdOn">Front desk, one analyst a day</label></div>
+        <div class="fields two" v-if="f.fdOn">
+          <div><label class="form-label" for="set-fdLabel">Name</label><input id="set-fdLabel" class="form-control" v-model="f.fdLabel" maxlength="30"></div>
+          <div><label class="form-label" for="set-fdStart">Analyst number on day 1</label><input id="set-fdStart" type="number" min="1" class="form-control" v-model="f.fdStart" :class="{ 'is-invalid': err('fdStart') }" @blur="t.fdStart = true" @focus="t.fdStart = false"><div class="invalid-msg" v-if="err('fdStart')">{{ errors.fdStart }}</div></div>
         </div>
-        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('period', ['title', 'start'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'period'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
-      </template>
-      <template v-if="ui.settings === 'shifts'">
-        <h2 id="sec-shifts" tabindex="-1">Shifts</h2><p class="text-2 prose">The two shift codes as they appear on the roster. Codes like 7-4 also set the times in staff calendars.</p>
-        <div class="fields two">
-          <div><label class="form-label" for="set-early">Early shift</label><input id="set-early" class="form-control mono" v-model="f.early" :class="{ 'is-invalid': err('early') }" @blur="blur('early')" @focus="focusField('early')" maxlength="12"><div class="invalid-msg" v-if="err('early')">{{ errors.early }}</div></div>
-          <div><label class="form-label" for="set-late">Late shift</label><input id="set-late" class="form-control mono" v-model="f.late" :class="{ 'is-invalid': err('late') }" @blur="blur('late')" @focus="focusField('late')" maxlength="12"><div class="invalid-msg" v-if="err('late')">{{ errors.late }}</div></div>
+      </div>
+      <div class="rot-set">
+        <div class="form-check form-switch"><input id="set-sbOn" class="form-check-input" type="checkbox" role="switch" v-model="f.sbOn"><label class="form-check-label fw-semibold" for="set-sbOn">Second site, 2 seats, weekly</label></div>
+        <div class="fields two" v-if="f.sbOn">
+          <div><label class="form-label" for="set-sbLabel">Site name</label><input id="set-sbLabel" class="form-control" v-model="f.sbLabel" maxlength="30"></div>
+          <div><label class="form-label" for="set-sbMin">Minimum working there</label><input id="set-sbMin" type="number" min="0" max="2" class="form-control" v-model="f.sbMin" :class="{ 'is-invalid': err('sbMin') }" @blur="t.sbMin = true" @focus="t.sbMin = false"><div class="invalid-msg" v-if="err('sbMin')">{{ errors.sbMin }}</div></div>
+          <div><label class="form-label" for="set-seat1">Seat 1 analyst in week 1</label><input id="set-seat1" type="number" min="1" class="form-control" v-model="f.seat1" :class="{ 'is-invalid': err('seat1') }" @blur="t.seat1 = true" @focus="t.seat1 = false"><div class="invalid-msg" v-if="err('seat1')">{{ errors.seat1 }}</div></div>
+          <div><label class="form-label" for="set-seat2">Seat 2 analyst from Wednesday</label><input id="set-seat2" type="number" min="1" class="form-control" v-model="f.seat2" :class="{ 'is-invalid': err('seat2') }" @blur="t.seat2 = true" @focus="t.seat2 = false"><div class="invalid-msg" v-if="err('seat2')">{{ errors.seat2 }}</div></div>
         </div>
-        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('shifts', ['early', 'late'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'shifts'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
-      </template>
-      <template v-if="ui.settings === 'cover'">
-        <h2 id="sec-cover" tabindex="-1">Daily cover</h2><p class="text-2 prose">The fewest people needed each weekday. A day below any of these shows as short.</p>
-        <div class="fields two">
-          <div><label class="form-label" for="set-minEarly">On {{ eff.shifts.early }}</label><input id="set-minEarly" type="number" inputmode="numeric" min="0" max="50" class="form-control" v-model="f.minEarly" :class="{ 'is-invalid': err('minEarly') }" @blur="blur('minEarly')" @focus="focusField('minEarly')"><div class="invalid-msg" v-if="err('minEarly')">{{ errors.minEarly }}</div></div>
-          <div><label class="form-label" for="set-minLate">On {{ eff.shifts.late }}</label><input id="set-minLate" type="number" inputmode="numeric" min="0" max="50" class="form-control" v-model="f.minLate" :class="{ 'is-invalid': err('minLate') }" @blur="blur('minLate')" @focus="focusField('minLate')"><div class="invalid-msg" v-if="err('minLate')">{{ errors.minLate }}</div></div>
-          <div><label class="form-label" for="set-minSenior">{{ E.seniorLabel(eff).replace(' on duty', '') }} on duty</label><input id="set-minSenior" type="number" inputmode="numeric" min="0" max="50" class="form-control" v-model="f.minSenior" :class="{ 'is-invalid': err('minSenior') }" @blur="blur('minSenior')" @focus="focusField('minSenior')"><div class="invalid-msg" v-if="err('minSenior')">{{ errors.minSenior }}</div><div class="form-text">Counts the senior group on either shift.</div></div>
+      </div>
+      <div class="rot-set">
+        <div class="form-check form-switch"><input id="set-ocOn" class="form-check-input" type="checkbox" role="switch" v-model="f.ocOn"><label class="form-check-label fw-semibold" for="set-ocOn">On call, weekly</label></div>
+        <div class="fields two" v-if="f.ocOn">
+          <div><label class="form-label" for="set-ocLabel">Name</label><input id="set-ocLabel" class="form-control" v-model="f.ocLabel" maxlength="30"></div>
+          <div><label class="form-label" for="set-ocPool">People in the pool</label><input id="set-ocPool" type="number" min="1" class="form-control" v-model="f.ocPool" :class="{ 'is-invalid': err('ocPool') }" @blur="t.ocPool = true" @focus="t.ocPool = false"><div class="invalid-msg" v-if="err('ocPool')">{{ errors.ocPool }}</div><div class="form-text">Seniors first, then analysts.</div></div>
+          <div><label class="form-label" for="set-ocStart">Pool position in week 1</label><input id="set-ocStart" type="number" min="1" class="form-control" v-model="f.ocStart" :class="{ 'is-invalid': err('ocStart') }" @blur="t.ocStart = true" @focus="t.ocStart = false"><div class="invalid-msg" v-if="err('ocStart')">{{ errors.ocStart }}</div></div>
         </div>
-        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('cover', ['minEarly', 'minLate', 'minSenior'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'cover'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
-      </template>
-      <template v-if="ui.settings === 'rotations'">
-        <h2 id="sec-rotations" tabindex="-1">Rotations</h2><p class="text-2 prose">Duties that rotate through the team. Switches save straight away; the details below save together. Analyst numbers follow the order on the Team page.</p>
-        <div class="set-group">
-          <div class="form-check form-switch"><input id="set-fd-on" class="form-check-input" type="checkbox" role="switch" :checked="eff.rules.frontDesk.on" @change="toggleRot('frontDesk', $event.target.checked)"><label class="form-check-label fw-semibold" for="set-fd-on">{{ eff.rules.frontDesk.label }}, daily</label></div>
-          <p class="form-text mb-3">One analyst a day in turn. If they're off or at the second site, the next free analyst covers.</p>
-          <div class="fields two" v-if="eff.rules.frontDesk.on">
-            <div><label class="form-label" for="set-fdLabel">Name</label><input id="set-fdLabel" class="form-control" v-model="f.fdLabel" maxlength="30"></div>
-            <div><label class="form-label" for="set-fdStart">Analyst number on day 1</label><input id="set-fdStart" type="number" min="1" class="form-control" v-model="f.fdStart" :class="{ 'is-invalid': err('fdStart') }" @blur="blur('fdStart')" @focus="focusField('fdStart')"><div class="invalid-msg" v-if="err('fdStart')">{{ errors.fdStart }}</div></div>
-          </div>
-        </div>
-        <div class="set-group">
-          <div class="form-check form-switch"><input id="set-sb-on" class="form-check-input" type="checkbox" role="switch" :checked="eff.rules.siteB.on" @change="toggleRot('siteB', $event.target.checked)"><label class="form-check-label fw-semibold" for="set-sb-on">{{ eff.rules.siteB.label }}, 2 seats weekly</label></div>
-          <p class="form-text mb-3">Seat 1 runs Monday to Friday. Seat 2 runs Wednesday to Tuesday so the handover is staggered.</p>
-          <div class="fields two" v-if="eff.rules.siteB.on">
-            <div><label class="form-label" for="set-sbLabel">Site name</label><input id="set-sbLabel" class="form-control" v-model="f.sbLabel" maxlength="30"></div>
-            <div><label class="form-label" for="set-sbMin">Minimum working there</label><input id="set-sbMin" type="number" min="0" max="2" class="form-control" v-model="f.sbMin" :class="{ 'is-invalid': err('sbMin') }" @blur="blur('sbMin')" @focus="focusField('sbMin')"><div class="invalid-msg" v-if="err('sbMin')">{{ errors.sbMin }}</div></div>
-            <div><label class="form-label" for="set-seat1">Seat 1: analyst number in week 1</label><input id="set-seat1" type="number" min="1" class="form-control" v-model="f.seat1" :class="{ 'is-invalid': err('seat1') }" @blur="blur('seat1')" @focus="focusField('seat1')"><div class="invalid-msg" v-if="err('seat1')">{{ errors.seat1 }}</div></div>
-            <div><label class="form-label" for="set-seat2">Seat 2: analyst number from Wednesday</label><input id="set-seat2" type="number" min="1" class="form-control" v-model="f.seat2" :class="{ 'is-invalid': err('seat2') }" @blur="blur('seat2')" @focus="focusField('seat2')"><div class="invalid-msg" v-if="err('seat2')">{{ errors.seat2 }}</div></div>
-          </div>
-        </div>
-        <div class="set-group">
-          <div class="form-check form-switch"><input id="set-oc-on" class="form-check-input" type="checkbox" role="switch" :checked="eff.rules.onCall.on" @change="toggleRot('onCall', $event.target.checked)"><label class="form-check-label fw-semibold" for="set-oc-on">{{ eff.rules.onCall.label }}, weekly</label></div>
-          <p class="form-text mb-3">Runs through the first people in the pool: seniors first, then analysts. Leads are never on call.</p>
-          <div class="fields two" v-if="eff.rules.onCall.on">
-            <div><label class="form-label" for="set-ocLabel">Name</label><input id="set-ocLabel" class="form-control" v-model="f.ocLabel" maxlength="30"></div>
-            <div><label class="form-label" for="set-ocPool">People in the pool</label><input id="set-ocPool" type="number" min="1" class="form-control" v-model="f.ocPool" :class="{ 'is-invalid': err('ocPool') }" @blur="blur('ocPool')" @focus="focusField('ocPool')"><div class="invalid-msg" v-if="err('ocPool')">{{ errors.ocPool }}</div><div class="form-text">{{ R.so.filter(p => p.group === 'senior').length }} covers the seniors only.</div></div>
-            <div><label class="form-label" for="set-ocStart">Pool position in week 1</label><input id="set-ocStart" type="number" min="1" class="form-control" v-model="f.ocStart" :class="{ 'is-invalid': err('ocStart') }" @blur="blur('ocStart')" @focus="focusField('ocStart')"><div class="invalid-msg" v-if="err('ocStart')">{{ errors.ocStart }}</div></div>
-          </div>
-        </div>
-        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('rotations', ['fdStart', 'sbMin', 'seat1', 'seat2', 'ocPool', 'ocStart'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'rotations'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
-      </template>
-      <template v-if="ui.settings === 'rdo'">
-        <h2 id="sec-rdo" tabindex="-1">RDO days</h2><p class="text-2 prose">Each person gets 1 RDO each pay period. Planning only places them on the days ticked here.</p>
-        <fieldset><legend class="form-label">Days RDOs can fall on</legend>
-          <div class="days-row"><div v-for="(d, k) in E.DAYS" :key="d" class="form-check"><input :id="'set-rdo-' + k" class="form-check-input" type="checkbox" :value="k + 1" v-model="f.rdoDays" @change="touched.rdoDays = true"><label class="form-check-label" :for="'set-rdo-' + k">{{ d }}</label></div></div>
-          <div class="invalid-msg" v-if="touched.rdoDays && errors.rdoDays">{{ errors.rdoDays }}</div>
-        </fieldset>
-        <div class="save-row"><button type="button" class="btn btn-primary" id="set-rdoDays" @click="save('rdo', ['rdoDays'])">Save changes</button><span v-if="saved === 'rdo'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
-        <div class="set-group">
-          <h3>Plan again</h3>
-          <p class="text-2 small-2 prose">Re-plans everyone's shifts and standard RDOs for this roster to keep cover up and avoid rotation clashes. Approved requests and single-day changes stay.</p>
-          <button type="button" class="btn btn-quiet" @click="act('replan')" :aria-busy="ui.busy === 'replan' ? 'true' : 'false'"><span v-if="ui.busy === 'replan'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-magic" aria-hidden="true"></i>Re-plan shifts and RDOs</button>
-        </div>
-      </template>
-      <template v-if="ui.settings === 'data'">
-        <h2 id="sec-data" tabindex="-1">Data</h2><p class="text-2 prose">Everything is kept in this browser on this device. Download a backup to move it or keep it safe.</p>
-        <div class="d-flex flex-wrap gap-2">
-          <button type="button" class="btn btn-quiet" @click="act('backup')"><i class="bi bi-download" aria-hidden="true"></i>Download backup</button>
-          <label class="btn btn-quiet position-relative"><i class="bi bi-upload" aria-hidden="true"></i>Open a backup or workbook<input type="file" accept=".json,.xlsx" class="position-absolute opacity-0" style="inset:0;width:100%;cursor:pointer" @change="pickFile"></label>
-        </div>
-        <p class="form-text">Workbooks saved from this app reopen with any names, RDOs and swaps changed in Excel.</p>
-        <div class="danger-zone">
-          <h3>Danger zone</h3>
-          <div class="danger-row" v-if="periods.length > 1"><span class="text-2 small-2">Delete the {{ periodLabel(period) }} roster. Other rosters stay.</span><button type="button" class="btn btn-danger-quiet" @click="act('deletePeriod')">Delete this roster</button></div>
-          <div class="danger-row"><span class="text-2 small-2">Delete every roster and request on this device and start again from the sample team.</span><button type="button" class="btn btn-danger-quiet" @click="act('reset')">Delete everything</button></div>
-        </div>
-      </template>
-    </section>
+      </div>
+    </div>
+    <div class="set-group"><h2>RDO days</h2>
+      <fieldset><legend class="form-label">Days RDOs can fall on when re-planning</legend>
+        <div class="days-row"><div v-for="(d, k) in E.DAYS" :key="d" class="form-check"><input :id="'set-rdo-' + k" class="form-check-input" type="checkbox" :value="k + 1" v-model="f.rdoDays"><label class="form-check-label" :for="'set-rdo-' + k">{{ d }}</label></div></div>
+        <div class="invalid-msg" id="set-rdoDays" tabindex="-1" v-if="t.rdoDays && errors.rdoDays">{{ errors.rdoDays }}</div>
+      </fieldset>
+    </div>
+    <div class="save-row"><button type="submit" class="btn btn-primary">Save changes</button><button type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
+  </form>
+  <div class="danger-zone">
+    <h3>Start again</h3>
+    <div class="danger-row"><span class="text-2 small-2">Replace the roster in this browser with the sample team. Excel files you downloaded are not affected.</span><button type="button" class="btn btn-danger-quiet" @click="startAgain">Start again</button></div>
   </div>
 </div>
 </script>
@@ -788,7 +308,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
 <script src="js/engine.js"></script>
 <script src="js/planner.js"></script>
-<script src="js/exports.js"></script>
 <script src="js/app.js"></script>
 <style>[v-cloak] { display: none; }</style>
 </body>

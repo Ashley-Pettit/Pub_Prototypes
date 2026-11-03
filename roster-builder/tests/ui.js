@@ -31,7 +31,7 @@ require('fs').mkdirSync(out,
     const errs = [];
     p.on('pageerror', e => errs.push(e.message));
     p.on('console', m => m.type() === 'error' && errs.push(m.text()));
-    for (const r of ['roster', 'requests', 'team', 'review', 'settings'])
+    for (const r of ['roster', 'team', 'leave', 'settings'])
     {
       await p.goto(base + '#' + r,
       {
@@ -45,43 +45,6 @@ require('fs').mkdirSync(out,
         fullPage: tag === 'wide'
       });
       res.push(`${tag} ${r} overflow=${ov}`);
-    }
-    if (tag === 'wide')
-    {
-      const pid = await p.evaluate(() => window.__roster.store.data.periods[0].people[4].id);
-      await p.goto(base + '#person-' + pid,
-      {
-        waitUntil: 'networkidle'
-      });
-      await p.waitForTimeout(200);
-      await p.screenshot(
-      {
-        path: `${out}/${tag}-person.png`,
-        fullPage: true
-      });
-      await p.goto(base + '#roster');
-      await p.waitForTimeout(200);
-      await p.click('.cell >> nth=3');
-      await p.waitForTimeout(200);
-      await p.screenshot(
-      {
-        path: `${out}/${tag}-pop.png`
-      });
-      await p.keyboard.press('Escape');
-      await p.click('text=Add request');
-      await p.waitForTimeout(300);
-      await p.screenshot(
-      {
-        path: `${out}/${tag}-slide.png`
-      });
-      await p.keyboard.press('Escape');
-      await p.click('.dayhead >> nth=2');
-      await p.waitForTimeout(300);
-      await p.screenshot(
-      {
-        path: `${out}/${tag}-day.png`
-      });
-      await p.keyboard.press('Escape');
     }
     res.push(`${tag} errors: ${JSON.stringify(errs)}`);
     await ctx.close();

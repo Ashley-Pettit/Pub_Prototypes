@@ -7,8 +7,7 @@ const fs = require('fs'),
   path = require('path'),
   cp = require('child_process');
 const E = require('../js/engine.js'),
-  P = require('../js/planner.js'),
-  X = require('../js/exports.js');
+  P = require('../js/planner.js');
 let ExcelJS = null;
 try
 {
@@ -250,28 +249,6 @@ const roleMap = c => new Map(c.people.map(p => [E.variable(p), p.role]));
       const q = nx.people.find(x => x.id === p.id);
       assert.notStrictEqual(q.plan[0].shift, p.plan[1].shift, p.role);
     }
-  });
-  await test('T16', 'Payroll CSV: one row per person per pay period, totals add to 10 weekdays', () =>
-  {
-    const c = base();
-    const r = E.compute(c);
-    const rows = X.payrollCsv(c, r, []).trim().split('\r\n').slice(1).map(l => l.split(','));
-    assert.strictEqual(rows.length, c.people.length * 2);
-    rows.forEach(x => assert.strictEqual(+x[5] + +x[6] + +x[7] + +x[8] + +x[9], 10));
-  });
-  await test('T17', 'CSV cells that start with = + - @ are neutralised (formula injection)', () =>
-  {
-    assert(X.csv([
-      ['=1+1', '@x', 'ok']
-    ]).startsWith(`"'=1+1","'@x",ok`));
-  });
-  await test('T18', 'Calendar file has one event per weekday with shift times', () =>
-  {
-    const c = base();
-    const r = E.compute(c);
-    const t = X.ics(c, r, c.people[1].id);
-    assert.strictEqual((t.match(/BEGIN:VEVENT/g) || []).length, 20);
-    assert(/DTSTART:20261102T080000/.test(t) || /DTSTART:20261102T070000/.test(t) || /VALUE=DATE:20261102/.test(t));
   });
   if (ExcelJS)
   {
