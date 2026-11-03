@@ -4,1086 +4,792 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Roster Builder</title>
-<meta name="description" content="Rapid prototype: plan a fortnightly shift roster with RDOs and rotations, then save it as an Excel workbook.">
+<meta name="description" content="Rapid prototype: plan a fortnightly team roster with RDOs, rotations, leave and cover checks.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232552a3'/%3E%3Cg fill='%23fff'%3E%3Crect x='7' y='8' width='5' height='5' rx='1'/%3E%3Crect x='14' y='8' width='5' height='5' rx='1' opacity='.5'/%3E%3Crect x='21' y='8' width='5' height='5' rx='1'/%3E%3Crect x='7' y='15' width='5' height='5' rx='1'/%3E%3Crect x='14' y='15' width='5' height='5' rx='1'/%3E%3Crect x='21' y='15' width='5' height='5' rx='1' opacity='.5'/%3E%3Crect x='7' y='22' width='5' height='3' rx='1' opacity='.5'/%3E%3Crect x='14' y='22' width='5' height='3' rx='1'/%3E%3Crect x='21' y='22' width='5' height='3' rx='1'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<style>
-/* Layout: warning banner, app bar with file actions, status chips, then tabbed work area. The roster grid scrolls sideways inside its own box. */
-:root {
-  --bg: #f3f5f8; --panel: #ffffff; --ink: #152033; --muted: #5b677a; --line: #d6dce5; --soft: #e9edf3;
-  --navy: #1f3864; --navy-ink: #ffffff; --accent: #2a5296;
-  --early: #bdd7ee; --late: #c6e0b4; --rdo: #d9d9d9; --leave: #f8cbad; --bad: #ff9999; --bad-ink: #8a1010;
-  --fd: #ffe699; --seat1: #f4b084; --seat2: #f8cbad; --oncall: #b4c6e7; --cell-ink: #152033;
-  --warn-bg: #fff1c2; --warn-ink: #5a3d00; --warn-line: #e8c55a; --good: #1d6b44;
-  --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
-  --f-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #10151d; --panel: #18202b; --ink: #e4e9f0; --muted: #9ba7b8; --line: #2c3746; --soft: #222c39;
-  --navy: #2b4a80; --navy-ink: #ffffff; --accent: #8cb0ee;
-  --early: #2c4a66; --late: #34502a; --rdo: #3a3f47; --leave: #6b3f26; --bad: #7a2626; --bad-ink: #ffb3b3;
-  --fd: #5e5022; --seat1: #6b4026; --seat2: #5c3a2a; --oncall: #34466b; --cell-ink: #e4e9f0;
-  --warn-bg: #3d3110; --warn-ink: #ffe09a; --warn-line: #7a6320; --good: #6fd19c; color-scheme: dark } }
-:root[data-theme="dark"] {
-  --bg: #10151d; --panel: #18202b; --ink: #e4e9f0; --muted: #9ba7b8; --line: #2c3746; --soft: #222c39;
-  --navy: #2b4a80; --navy-ink: #ffffff; --accent: #8cb0ee;
-  --early: #2c4a66; --late: #34502a; --rdo: #3a3f47; --leave: #6b3f26; --bad: #7a2626; --bad-ink: #ffb3b3;
-  --fd: #5e5022; --seat1: #6b4026; --seat2: #5c3a2a; --oncall: #34466b; --cell-ink: #e4e9f0;
-  --warn-bg: #3d3110; --warn-ink: #ffe09a; --warn-line: #7a6320; --good: #6fd19c; color-scheme: dark }
-* { box-sizing: border-box }
-html, body { margin: 0 }
-body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
-[hidden] { display: none !important }
-.gutter { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.inner { max-width: 1320px; margin: 0 auto }
-.banner { background: var(--warn-bg); color: var(--warn-ink); border-bottom: 1px solid var(--warn-line); padding-top: env(safe-area-inset-top, 0px) }
-.banner .inner { display: flex; gap: 10px; align-items: flex-start; padding-block: 10px; font-size: 14px }
-.banner svg { flex: none; margin-top: 2px }
-.banner strong { font-weight: 700 }
-.bar { padding-block: 18px 6px }
-.bar .inner { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; justify-content: space-between }
-h1 { font: 700 clamp(26px, 3.6vw, 34px)/1.05 var(--f-display); margin: 0; letter-spacing: .01em }
-.sub { color: var(--muted); margin: 4px 0 0; max-width: 62ch }
-.actions { display: flex; gap: 8px; flex-wrap: wrap }
-button, .btn { font: 700 14px var(--f-body); border-radius: 7px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 8px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-button:hover:not(:disabled), .btn:hover { border-color: var(--accent) }
-button:disabled { opacity: .5; cursor: not-allowed }
-button.primary { background: var(--navy); color: var(--navy-ink); border-color: var(--navy) }
-button.primary:hover:not(:disabled) { filter: brightness(1.12) }
-button.small { padding: 4px 9px; font-size: 13px }
-button.link { border: 0; background: none; color: var(--accent); padding: 2px 4px; font-weight: 700 }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
-.btn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none }
-.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px }
-.status { padding-block: 10px }
-.status .inner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px; font-size: 13.5px; background: var(--panel); border: 1px solid var(--line) }
-.chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--good); display: inline-block }
-.chip.bad i { background: var(--bad-ink) }
-.chip.bad { color: var(--bad-ink); border-color: var(--bad) }
-.msg { font-size: 14px; color: var(--muted); margin-left: auto }
-.msg.good { color: var(--good) } .msg.bad { color: var(--bad-ink) }
-nav.tabs { border-bottom: 1px solid var(--line) }
-nav.tabs .inner { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none }
-nav.tabs a { padding: 10px 14px; color: var(--muted); text-decoration: none; font-weight: 700; border-bottom: 3px solid transparent; white-space: nowrap }
-nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--navy) }
-nav.tabs a:hover { color: var(--ink) }
-main { padding-block: 18px 60px }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0 }
-.stack { display: grid; gap: 16px }
-h2 { font: 700 20px/1.2 var(--f-display); margin: 0 0 4px; letter-spacing: .01em }
-.hint { color: var(--muted); font-size: 14px; margin: 0 0 14px; max-width: 75ch }
-.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch }
-.form { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px 18px }
-.field label, .lbl { display: block; font-size: 13px; font-weight: 700; margin-bottom: 4px }
-.field small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px }
-input[type=text], input[type=number], input[type=date], select { font: inherit; font-size: 14px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; width: 100%; min-width: 0 }
-input[type=number] { max-width: 110px }
-.check { display: flex; gap: 8px; align-items: center; font-weight: 700; cursor: pointer }
-.check input { accent-color: var(--navy); width: 16px; height: 16px }
-fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px 14px; margin: 0; min-width: 0 }
-legend { padding: 0 6px }
-.days { display: flex; gap: 12px; flex-wrap: wrap }
-.days label { font-weight: 400; display: flex; gap: 5px; align-items: center }
-
-table.t { border-collapse: collapse; width: 100%; font-size: 14px }
-table.t th { text-align: left; font-size: 12.5px; color: var(--muted); font-weight: 700; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: bottom }
-table.t td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle }
-table.t td.nowrap { white-space: nowrap }
-.tag { font-size: 12px; color: var(--muted) }
-.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12.5px; font-weight: 700; background: var(--soft) }
-.pill.ok { color: var(--good) } .pill.bad { background: var(--bad); color: var(--bad-ink) } .pill.warn { background: var(--fd); color: var(--cell-ink) }
-.fort { border-left: 2px solid var(--line) }
-
-/* Roster grid */
-.grid { border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums }
-.grid th, .grid td { padding: 0; text-align: center; border-bottom: 1px solid var(--line); height: 30px; min-width: 52px }
-.grid thead th { background: var(--navy); color: var(--navy-ink); font-weight: 700; font-size: 12px; padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,.15) }
-.grid .sticky { position: sticky; left: 0; z-index: 2; text-align: left; background: var(--panel); min-width: 150px; max-width: 190px; padding: 0 10px; border-right: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.grid thead .sticky { background: var(--navy); z-index: 3 }
-.grid .wk { border-left: 2px solid var(--ink) }
-.grid thead .wk { border-left-color: var(--navy-ink) }
-.grid .who b { display: block; font-size: 13.5px; line-height: 1.15 }
-.grid .who span { display: block; font-size: 11.5px; color: var(--muted); line-height: 1.1 }
-.grid .vacant b { color: var(--bad-ink) }
-.grid td.s button { width: 100%; height: 100%; border: 0; border-radius: 0; padding: 0; font: 500 12.5px var(--f-mono); color: var(--cell-ink); background: transparent; justify-content: center }
-.grid td.s button:hover { outline: 2px solid var(--accent); outline-offset: -2px }
-.grid td.early { background: var(--early) } .grid td.late { background: var(--late) } .grid td.rdo { background: var(--rdo) } .grid td.leave { background: var(--leave) } .grid td.other { background: var(--soft) }
-.grid td.s.ov button::after { content: ""; position: absolute; width: 0; height: 0; border-top: 7px solid var(--navy); border-left: 7px solid transparent; transform: translate(19px, -9px) }
-.grid td.s { position: relative }
-.grid td.stat { font-family: var(--f-mono); min-width: 64px }
-.grid td.stat.bad { background: var(--bad); color: var(--bad-ink); font-weight: 700 }
-.grid tr.band td, .grid tr.band th { background: var(--soft); font-weight: 700; text-align: left; font-size: 12.5px; padding: 0 10px; height: 26px }
-.grid tr.band .sticky { background: var(--soft) }
-.grid td.num { font-family: var(--f-mono) }
-.grid td.ok { color: var(--good); font-weight: 700; font-size: 11.5px }
-.grid td.badc { background: var(--bad); color: var(--bad-ink); font-weight: 700; font-size: 11px; line-height: 1.1 }
-.grid td.rot { font-size: 12px; line-height: 1.1; padding: 0 2px }
-.grid tr.fd td.rot { background: var(--fd) } .grid tr.seat1 td.rot { background: var(--seat1) } .grid tr.seat2 td.rot { background: var(--seat2) } .grid tr.oc td.rot { background: var(--oncall) }
-.grid td.rot.clash { box-shadow: inset 0 0 0 2px var(--bad-ink); color: var(--bad-ink); font-weight: 700 }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin-top: 12px }
-.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; background: var(--c); border: 1px solid var(--line) }
-.menu { position: absolute; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: 6px; display: grid; gap: 2px; min-width: 160px }
-.menu .h { font-size: 12px; color: var(--muted); padding: 4px 8px 6px; border-bottom: 1px solid var(--line); margin-bottom: 2px }
-.menu button { border: 0; justify-content: flex-start; font-weight: 400; padding: 6px 8px; width: 100% }
-.menu button:hover { background: var(--soft) }
-.menu button i { width: 12px; height: 12px; border-radius: 3px; background: var(--c); display: inline-block; border: 1px solid var(--line) }
-.spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s .8s linear infinite }
-@keyframes s { to { transform: rotate(360deg) } }
-@media (prefers-reduced-motion: reduce) { .spin { animation: none } }
-.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px }
-@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr) } }
-.empty { color: var(--muted); font-size: 14px; padding: 8px 0 }
-footer { color: var(--muted); font-size: 13px; padding-block: 0 30px }
-</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=IBM+Plex+Mono:wght@500&family=Source+Sans+3:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css">
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="banner gutter" role="note">
-  <div class="inner">
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2 1 21h22L12 2Zm0 6 1 7h-2l1-7Zm0 9.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Z"/></svg>
-    <span><strong>Rapid prototype, not an endorsed tool.</strong> Do not enter council data. For management review as a concept only.</span>
+<div class="banner" role="note">
+  <div class="inner"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span><strong>Rapid prototype, not an endorsed tool.</strong> Do not enter council data. For management review as a concept only.</span></div>
+</div>
+
+<div id="app" v-cloak>
+  <a class="visually-hidden-focusable btn btn-quiet" href="#main" style="position:absolute;left:16px;top:8px;z-index:100" @click.prevent="$refs.main.focus()">Skip to content</a>
+  <header class="topbar">
+    <div class="inner">
+      <button type="button" class="btn btn-quiet btn-icon menu-toggle" :aria-expanded="ui.menuOpen ? 'true' : 'false'" aria-controls="navmenu" v-tip="'Open menu'" @click="ui.menuOpen = !ui.menuOpen"><i class="bi" :class="ui.menuOpen ? 'bi-x-lg' : 'bi-list'" aria-hidden="true"></i></button>
+      <a class="brand" href="#roster"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Roster Builder</a>
+      <nav class="mainnav" aria-label="Main">
+        <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="navCurrent === k ? 'page' : null">{{ n }}<span v-if="k === 'requests' && pendingReqs.length" class="count-badge" :aria-label="pendingReqs.length + ' pending'">{{ pendingReqs.length }}</span></a>
+      </nav>
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-quiet btn-icon" :disabled="!store.undo.length" v-tip="{ text: 'Undo last change', kbd: MOD + 'Z' }" @click="undo"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
+    </div>
+    <nav id="navmenu" class="navmenu" v-if="ui.menuOpen" aria-label="Main">
+      <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="navCurrent === k ? 'page' : null">{{ n }}<span v-if="k === 'requests' && pendingReqs.length" class="count-badge">{{ pendingReqs.length }}</span></a>
+    </nav>
+  </header>
+
+  <main class="page" id="main" ref="main" tabindex="-1">
+    <component :is="page"></component>
+  </main>
+
+  <!-- Cell / rotation popover (non-modal) -->
+  <div v-if="pop" ref="pop" class="pop" :style="popPos || { left: '-9999px', top: '0' }" role="dialog" :aria-label="pop.kind === 'cell' && popPerson ? v(popPerson) + ', ' + nice(pop.iso) : 'Choose who covers ' + nice(pop.iso)" @keydown.esc.stop="closePop()">
+    <template v-if="pop.kind === 'cell' && popPerson">
+      <div class="pop-head"><b>{{ v(popPerson) }}, {{ nice(pop.iso) }}</b><span class="meta">{{ popValue }} · {{ popSource }}</span></div>
+      <div role="menu" :aria-label="'Set ' + v(popPerson) + ' for ' + nice(pop.iso)">
+        <button v-for="o in [[eff.shifts.early, 'var(--early)'], [eff.shifts.late, 'var(--late)'], ['RDO', 'var(--rdo)']]" :key="o[0]" type="button" class="menu-item" role="menuitemradio" :aria-checked="popValue === o[0] ? 'true' : 'false'" @click="choose(o[0])"><span class="swatch" :style="{ background: o[1] }"></span>{{ o[0] === 'RDO' ? 'Make it an RDO' : 'Work ' + o[0] }}</button>
+        <button type="button" class="menu-item" role="menuitem" @click="leaveFromCell"><span class="swatch" style="background: var(--leave)"></span>Record leave from this day</button>
+        <button v-if="popSource === 'Changed for this day'" type="button" class="menu-item" role="menuitem" @click="choose(null)"><i class="bi bi-arrow-return-left" aria-hidden="true"></i>Set back to the plan</button>
+      </div>
+    </template>
+    <template v-if="pop.kind === 'rot'">
+      <div class="pop-head"><b>{{ P.ROT_LABEL(eff)[pop.rot] }}, {{ nice(pop.iso) }}</b><span class="meta">Now: {{ popRotCurrent }}{{ popRotManual ? ' (changed for this day)' : '' }}</span></div>
+      <div role="menu" :aria-label="'Choose who covers ' + P.ROT_LABEL(eff)[pop.rot]">
+        <div class="pop-sec">Working that day</div>
+        <button v-for="o in popRotOptions.filter(x => x.working)" :key="o.p.id" type="button" class="menu-item" role="menuitemradio" :aria-checked="popRotCurrent === v(o.p) ? 'true' : 'false'" @click="chooseRot(o.p.id)">{{ v(o.p) }} <span class="meta">{{ o.v }}</span></button>
+        <div class="pop-sec" v-if="popRotOptions.some(x => !x.working)">Off that day</div>
+        <div v-for="o in popRotOptions.filter(x => !x.working)" :key="'o' + o.p.id" class="menu-item text-3" aria-disabled="true">{{ v(o.p) }} <span class="meta">{{ o.v }}</span></div>
+        <button v-if="popRotManual" type="button" class="menu-item" role="menuitem" @click="chooseRot(null)"><i class="bi bi-arrow-return-left" aria-hidden="true"></i>Set back to the rotation</button>
+      </div>
+    </template>
+  </div>
+
+  <!-- Slide-over -->
+  <template v-if="slide">
+    <div class="scrim" @click="closeSlide"></div>
+    <aside class="slide" ref="slide" role="dialog" aria-modal="true" aria-labelledby="slide-title" @keydown="slideKey">
+      <!-- New request -->
+      <template v-if="slide.kind === 'request' && form">
+        <div class="slide-head">
+          <div><h2 id="slide-title">New request</h2><p>See what it does to cover before you approve it.</p></div>
+          <button type="button" class="btn btn-quiet btn-icon" v-tip="'Close panel'" @click="closeSlide"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </div>
+        <form class="slide-body" novalidate @submit.prevent="submitRequest(false)">
+          <div v-if="form.restored" class="impact-box d-flex justify-content-between align-items-center gap-2"><span>Your unsaved request was restored.</span><button type="button" class="btn btn-link-quiet" @click="discardDraft">Discard draft</button></div>
+          <div>
+            <label class="form-label" for="rq-pid">Person</label>
+            <select id="rq-pid" class="form-select" v-model="form.pid" :class="{ 'is-invalid': ferr('pid', reqErrors) }" @blur="blur('pid')" @focus="unfocusErr('pid')" autofocus>
+              <option v-for="p in reqPeople" :key="p.id" :value="p.id">{{ v(p) }} ({{ p.role }})</option>
+            </select>
+            <div class="invalid-msg" v-if="ferr('pid', reqErrors)">{{ reqErrors.pid }}</div>
+          </div>
+          <div>
+            <span class="form-label d-block" id="rq-type-l">Type</span>
+            <div class="seg flex-wrap" role="radiogroup" aria-labelledby="rq-type-l">
+              <button v-for="t in ['annual', 'personal', 'other', 'swap']" :key="t" type="button" role="radio" :aria-checked="form.type === t ? 'true' : 'false'" :aria-pressed="form.type === t ? 'true' : 'false'" @click="form.type = t; form.from = ''; form.to = ''; touched = {}">{{ typeLabel(t) }}</button>
+            </div>
+          </div>
+          <template v-if="form.type !== 'swap'">
+            <div class="row g-3">
+              <div class="col-6">
+                <label class="form-label" for="rq-from">First day</label>
+                <input id="rq-from" type="date" class="form-control" v-model="form.from" :class="{ 'is-invalid': ferr('from', reqErrors) }" @blur="blur('from')" @focus="unfocusErr('from')" @change="form.to = (!form.to || form.to < form.from) ? form.from : form.to">
+                <div class="invalid-msg" v-if="ferr('from', reqErrors)">{{ reqErrors.from }}</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label" for="rq-to">Last day</label>
+                <input id="rq-to" type="date" class="form-control" v-model="form.to" :min="form.from" :class="{ 'is-invalid': ferr('to', reqErrors) }" @blur="blur('to')" @focus="unfocusErr('to')">
+                <div class="invalid-msg" v-if="ferr('to', reqErrors)">{{ reqErrors.to }}</div>
+              </div>
+            </div>
+            <div class="form-text" v-if="form.from">{{ plural(days(form), 'weekday') }} of leave.</div>
+          </template>
+          <template v-else>
+            <div>
+              <label class="form-label" for="rq-from">RDO to move</label>
+              <select id="rq-from" class="form-select" v-model="form.from" :class="{ 'is-invalid': ferr('from', reqErrors) }" @blur="blur('from')" @focus="unfocusErr('from')">
+                <option value="" disabled>Choose an RDO</option>
+                <option v-for="o in reqRdoDates" :key="o.iso" :value="o.iso">{{ nice(o.iso) }}{{ o.taken ? ' (already changed)' : '' }}</option>
+              </select>
+              <div class="invalid-msg" v-if="ferr('from', reqErrors)">{{ reqErrors.from }}</div>
+            </div>
+            <div>
+              <label class="form-label" for="rq-to">Move it to</label>
+              <input id="rq-to" type="date" class="form-control" v-model="form.to" :class="{ 'is-invalid': ferr('to', reqErrors) }" @blur="blur('to')" @focus="unfocusErr('to')">
+              <div class="invalid-msg" v-if="ferr('to', reqErrors)">{{ reqErrors.to }}</div>
+              <div v-if="reqSuggest.length" class="mt-2">
+                <span class="form-text d-block mb-2">Days that keep cover OK:</span>
+                <div class="daypick"><button v-for="s in reqSuggest" :key="s.iso" type="button" class="btn btn-quiet" :aria-pressed="form.to === s.iso ? 'true' : 'false'" @click="form.to = s.iso; touched.to = false">Use {{ nice(s.iso) }}</button></div>
+              </div>
+            </div>
+          </template>
+          <div>
+            <label class="form-label" for="rq-note">Note <span class="text-3">(optional)</span></label>
+            <input id="rq-note" type="text" class="form-control" v-model="form.note" maxlength="140" placeholder="Family trip">
+          </div>
+          <div v-if="reqImpact" class="impact-box" :class="reqImpact.outside ? '' : reqImpact.warn ? 'warn' : (reqImpact.safe ? 'ok' : 'bad')" aria-live="polite">
+            <template v-if="reqImpact.outside">These dates are outside the rosters you have planned, so cover can't be checked yet.</template>
+            <template v-else-if="reqImpact.invalid"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i> This swap can't apply: {{ reqImpact.invalid.toLowerCase() }}.</template>
+            <template v-else-if="reqImpact.safe && !reqImpact.warn"><i class="bi bi-check-circle-fill" aria-hidden="true"></i> Safe to approve. Cover and rotations stay OK.</template>
+            <template v-else-if="reqImpact.warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i> Cover stays OK, but check this after approving:<ul><li v-for="x in reqImpact.added.slice(0, 3)" :key="x.id">{{ x.title }}. {{ x.detail }}</li></ul></template>
+            <template v-else><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i> Approving this causes {{ plural(reqImpact.added.length, 'problem') }}:<ul><li v-for="x in reqImpact.added.slice(0, 4)" :key="x.id">{{ x.title }}. {{ x.detail }}</li></ul></template>
+          </div>
+        </form>
+        <div class="slide-foot">
+          <button type="button" class="btn btn-primary" @click="submitRequest(true)">Add and approve</button>
+          <button type="button" class="btn btn-quiet" @click="submitRequest(false)">Add as pending</button>
+          <button type="button" class="btn btn-link-quiet ms-auto" @click="closeSlide">Cancel</button>
+        </div>
+      </template>
+
+      <!-- Add / edit person -->
+      <template v-if="slide.kind === 'person' && form">
+        <div class="slide-head">
+          <div><h2 id="slide-title">{{ form.id ? 'Edit details' : 'Add person' }}</h2><p>{{ form.id ? 'Changes apply to this roster and any you plan after it.' : 'Their RDOs are placed where they hurt cover least.' }}</p></div>
+          <button type="button" class="btn btn-quiet btn-icon" v-tip="'Close panel'" @click="closeSlide"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </div>
+        <form class="slide-body" novalidate @submit.prevent="submitPerson">
+          <div>
+            <label class="form-label" for="ps-name">Name</label>
+            <input id="ps-name" type="text" class="form-control" v-model="form.name" autocomplete="off" autofocus maxlength="40">
+            <div class="form-text">Leave blank to show the role as Vacant. Use made-up names in this prototype.</div>
+          </div>
+          <div>
+            <label class="form-label" for="ps-group">Group</label>
+            <select id="ps-group" class="form-select" v-model="form.group" @change="groupChanged">
+              <option value="analyst">Analyst: covers front desk and second site</option>
+              <option value="senior">Senior: counts to senior cover, on call</option>
+              <option value="leader">Lead: no rotations</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label" for="ps-role">Role</label>
+            <input id="ps-role" type="text" class="form-control" v-model="form.role" :class="{ 'is-invalid': ferr('role', personErrors) }" @blur="blur('role')" @focus="unfocusErr('role')" maxlength="40">
+            <div class="invalid-msg" v-if="ferr('role', personErrors)">{{ personErrors.role }}</div>
+          </div>
+          <div>
+            <label class="form-label" for="ps-pattern">Shift pattern</label>
+            <select id="ps-pattern" class="form-select" v-model="form.pattern">
+              <option value="alt">Swap between {{ eff.shifts.early }} and {{ eff.shifts.late }} each pay period</option>
+              <option value="early">Always {{ eff.shifts.early }}</option>
+              <option value="late">Always {{ eff.shifts.late }}</option>
+            </select>
+          </div>
+        </form>
+        <div class="slide-foot">
+          <button type="button" class="btn btn-primary" @click="submitPerson">{{ form.id ? 'Save changes' : 'Add person' }}</button>
+          <button type="button" class="btn btn-link-quiet ms-auto" @click="closeSlide">Cancel</button>
+        </div>
+      </template>
+
+      <!-- Day detail -->
+      <template v-if="slide.kind === 'day' && dayInfo">
+        <div class="slide-head">
+          <div><h2 id="slide-title">{{ dayName(dayInfo.d.iso) }} {{ fmt(dayInfo.d.iso, true) }}</h2><p>Week {{ dayInfo.d.w + 1 }}, pay period {{ dayInfo.d.f + 1 }}. Cover check: <b :class="dayInfo.x.cover === 'OK' ? 'text-success' : 'text-danger'">{{ dayInfo.x.cover === 'OK' ? 'OK' : 'Short' }}</b></p></div>
+          <button type="button" class="btn btn-quiet btn-icon" v-tip="'Close panel'" @click="closeSlide"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+        </div>
+        <div class="slide-body">
+          <div v-if="dayInfo.issues.length" class="surface">
+            <div v-for="iss in dayInfo.issues" :key="iss.id" class="issue" :class="'sev' + iss.severity">
+              <i class="bi ico" :class="iss.severity === 2 ? 'bi-exclamation-circle-fill' : 'bi-exclamation-triangle-fill'" aria-hidden="true"></i>
+              <div><div class="what">{{ iss.title }}</div><div class="why">{{ iss.detail }}</div></div>
+              <div class="fixes" v-if="dayFixes(iss).length"><button v-for="fx in dayFixes(iss)" :key="fx.label" type="button" class="btn btn-quiet fix-btn" @click="fixFromDay(fx)"><i class="bi bi-magic" aria-hidden="true"></i>{{ fx.label }}</button></div>
+              <div class="nofix" v-else>No single change fixes this. Try moving an RDO on the Requests page.</div>
+            </div>
+          </div>
+          <div class="surface">
+            <table class="dtable">
+              <tbody>
+                <tr><td>On {{ eff.shifts.early }}</td><td class="num mono">{{ dayInfo.x.early }} <span class="text-3">/ {{ eff.rules.minEarly }}</span></td></tr>
+                <tr><td>On {{ eff.shifts.late }}</td><td class="num mono">{{ dayInfo.x.late }} <span class="text-3">/ {{ eff.rules.minLate }}</span></td></tr>
+                <tr><td>{{ E.seniorLabel(eff) }}</td><td class="num mono">{{ dayInfo.x.senior }} <span class="text-3">/ {{ eff.rules.minSenior }}</span></td></tr>
+                <tr v-if="dayInfo.x.siteB != null"><td>{{ eff.rules.siteB.label }} on duty</td><td class="num mono">{{ dayInfo.x.siteB }} <span class="text-3">/ {{ eff.rules.siteB.min }}</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3>Rotations</h3>
+            <dl class="row mb-0 small-2">
+              <template v-if="dayInfo.x.frontDesk != null"><dt class="col-6 fw-normal text-2">{{ eff.rules.frontDesk.label }}</dt><dd class="col-6">{{ dayInfo.x.frontDesk }}</dd></template>
+              <template v-if="dayInfo.x.seat1 != null"><dt class="col-6 fw-normal text-2">{{ eff.rules.siteB.label }} seats</dt><dd class="col-6">{{ dayInfo.x.seat1 }}, {{ dayInfo.x.seat2 }}</dd></template>
+              <template v-if="dayInfo.x.onCall != null"><dt class="col-6 fw-normal text-2">{{ eff.rules.onCall.label }}</dt><dd class="col-6">{{ dayInfo.x.onCall }}</dd></template>
+            </dl>
+          </div>
+          <div><h3>On {{ eff.shifts.early }}</h3><p class="mb-0 small-2">{{ dayInfo.early.map(v).join(', ') || 'No one' }}</p></div>
+          <div><h3>On {{ eff.shifts.late }}</h3><p class="mb-0 small-2">{{ dayInfo.late.map(v).join(', ') || 'No one' }}</p></div>
+          <div><h3>Off</h3><p class="mb-0 small-2"><span v-for="(p, k) in dayInfo.off" :key="p.id">{{ v(p) }} ({{ R.grid.get(p.id)[dayInfo.d.i] }}){{ k < dayInfo.off.length - 1 ? ', ' : '' }}</span><span v-if="!dayInfo.off.length">No one</span></p></div>
+        </div>
+        <div class="slide-foot">
+          <button type="button" class="btn btn-quiet" @click="closeSlide(); openRequest({ from: dayInfo.d.iso, to: dayInfo.d.iso })">Add a request for this day</button>
+          <button type="button" class="btn btn-link-quiet ms-auto" @click="closeSlide">Close</button>
+        </div>
+      </template>
+    </aside>
+  </template>
+
+  <!-- Confirm dialog -->
+  <template v-if="dlg">
+    <div class="scrim dialog-scrim" @click="closeDlg"></div>
+    <div class="dialog" ref="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-b" @keydown="dlgKey">
+      <h2 id="dlg-t">{{ dlg.title }}</h2>
+      <p id="dlg-b">{{ dlg.body }}</p>
+      <div class="btns">
+        <button type="button" class="btn btn-quiet" ref="dlgCancel" @click="closeDlg">Cancel</button>
+        <button type="button" class="btn" :class="dlg.danger === false ? 'btn-primary' : 'btn-danger'" @click="runDlg">{{ dlg.confirm }}</button>
+      </div>
+    </div>
+  </template>
+
+  <div class="toasts" aria-live="polite" role="status">
+    <div v-for="t in store.toasts" :key="t.id" class="toast-item" :class="{ bad: t.bad }">
+      <span class="grow">{{ t.text }}</span>
+      <button v-if="t.undo" type="button" class="btn" @click="undo(); store.toasts = []">Undo</button>
+      <button type="button" class="btn btn-icon" v-tip="'Dismiss message'" @click="store.toasts = []"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+    </div>
   </div>
 </div>
 
-<div class="bar gutter">
-  <div class="inner">
+<!-- ================= Roster (Pattern 7: Calendar) ================= -->
+<script type="text/x-template" id="tpl-roster">
+<div>
+  <div class="page-head">
     <div>
-      <h1>Roster Builder</h1>
-      <p class="sub">Set up the team, RDOs and rotations, check cover, then save an Excel roster with live formulas, dropdowns and checks. Everything stays in this browser.</p>
+      <h1 tabindex="-1">Roster</h1>
+      <p class="lede">{{ period.title }} · {{ plural(R.ro.length, 'person', 'people') }} · <span class="badge-s" :class="period.status === 'final' ? 'ok' : ''">{{ period.status === 'final' ? 'Final' : 'Draft' }}</span></p>
     </div>
     <div class="actions">
-      <button id="undoBtn" type="button" disabled title="Undo the last change">Undo</button>
-      <label class="btn" for="openInput">Open roster<input type="file" id="openInput" accept=".xlsx"></label>
-      <button class="primary" id="saveBtn" type="button">Save .xlsx</button>
+      <button v-if="!nextPeriod" type="button" class="btn btn-quiet" @click="act('planNext')" :aria-busy="ui.busy === 'next' ? 'true' : 'false'"><span v-if="ui.busy === 'next'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-calendar-plus" aria-hidden="true"></i>Plan next roster</button>
+      <button type="button" class="btn btn-primary" @click="openRequest()"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add request</button>
     </div>
   </div>
+
+  <div class="toolbar">
+    <div class="period-nav">
+      <button type="button" class="btn btn-quiet btn-icon" :disabled="!prevPeriod" v-tip="'Show previous roster'" @click="act('goPeriod', prevPeriod.id)"><i class="bi bi-chevron-left" aria-hidden="true"></i></button>
+      <span class="period-label tnum" aria-live="polite">{{ periodLabel(period) }}</span>
+      <button type="button" class="btn btn-quiet btn-icon" :disabled="!nextPeriod" v-tip="'Show next roster'" @click="act('goPeriod', nextPeriod.id)"><i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      <button type="button" class="btn btn-quiet" @click="act('today')">Today</button>
+    </div>
+    <span class="grow"></span>
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" :aria-pressed="ui.rosterView === 'period' ? 'true' : 'false'" @click="setView('period')">{{ period.weeks }} weeks</button>
+      <button type="button" :aria-pressed="ui.rosterView === 'week' ? 'true' : 'false'" @click="setView('week')">Week</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <div class="search">
+      <label for="roster-search" class="lbl-wide">Find person</label>
+      <div class="field"><i class="bi bi-search" aria-hidden="true"></i><input id="roster-search" data-search type="search" class="form-control" v-model="ui.search" placeholder="Name or role" autocomplete="off"><kbd v-if="!ui.search" aria-hidden="true">/</kbd></div>
+    </div>
+    <div class="filters position-relative">
+      <button type="button" class="btn btn-quiet" :aria-expanded="ui.filtersOpen ? 'true' : 'false'" aria-controls="roster-filters" @click="ui.filtersOpen = !ui.filtersOpen"><i class="bi bi-funnel" aria-hidden="true"></i>Filters<span v-if="filterCount" class="count-badge">{{ filterCount }}</span></button>
+      <div v-if="ui.filtersOpen" id="roster-filters" class="pop" style="top: 48px; left: 0">
+        <div class="pop-sec">Group</div>
+        <label v-for="g in ['leader', 'senior', 'analyst']" :key="g" class="menu-item"><input type="checkbox" class="form-check-input m-0" :checked="ui.groups.includes(g)" @change="toggleGroup(g)">{{ groupPlural(g) }}</label>
+        <div class="pop-sec">Problems</div>
+        <label class="menu-item"><input type="checkbox" class="form-check-input m-0" v-model="ui.onlyIssues">Only people with problems</label>
+      </div>
+    </div>
+    <template v-if="ui.rosterView === 'week'">
+      <span class="grow"></span>
+      <div class="seg" role="tablist" aria-label="Week">
+        <button v-for="w in period.weeks" :key="w" type="button" role="tab" :aria-selected="ui.week === w - 1 ? 'true' : 'false'" @click="ui.week = w - 1">Week {{ w }}</button>
+      </div>
+    </template>
+  </div>
+  <div class="chips" v-if="filterCount || ui.search">
+    <span v-if="ui.search" class="chip">Search: {{ ui.search }}<button type="button" v-tip="'Clear search'" @click="ui.search = ''"><i class="bi bi-x" aria-hidden="true"></i></button></span>
+    <span v-for="g in ui.groups" :key="g" class="chip">{{ groupPlural(g) }}<button type="button" v-tip="'Remove ' + groupPlural(g) + ' filter'" @click="toggleGroup(g)"><i class="bi bi-x" aria-hidden="true"></i></button></span>
+    <span v-if="ui.onlyIssues" class="chip">With problems<button type="button" v-tip="'Remove problems filter'" @click="ui.onlyIssues = false"><i class="bi bi-x" aria-hidden="true"></i></button></span>
+    <button type="button" class="btn btn-link-quiet" @click="clearFilters">Clear all filters</button>
+  </div>
+
+  <section v-if="!ui.introHidden" class="surface intro mb-3" aria-labelledby="intro-h">
+    <div class="intro-body">
+      <h2 id="intro-h" class="h3">How this roster works</h2>
+      <ol>
+        <li><b>Check the problems below.</b> Each one says what's wrong and offers a fix you can apply in one go.</li>
+        <li><b>Decide leave and RDO swaps on Requests.</b> Every request shows what approving it does to cover.</li>
+        <li><b>Review, mark as final and share.</b> Review has the payroll summary, a table to paste into email, and the Excel workbook.</li>
+      </ol>
+      <p class="meta mb-0">The team uses made-up names. Everything stays in this browser.</p>
+    </div>
+    <button type="button" class="btn btn-quiet btn-icon" v-tip="'Hide this guide'" @click="hideIntro"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+  </section>
+
+  <section class="surface issues mb-3" aria-labelledby="issues-h">
+    <div v-if="!issues.length" class="allclear"><i class="bi bi-check-circle-fill" aria-hidden="true"></i><span id="issues-h"><b class="text-success">No problems.</b> <span>Cover, rotations and RDOs all check out.</span></span></div>
+    <template v-else>
+      <div class="issues-head">
+        <div class="title" id="issues-h"><i class="bi bi-exclamation-circle-fill text-danger" aria-hidden="true"></i>{{ plural(issues.length, 'problem') }} to sort out</div>
+        <button type="button" class="btn btn-quiet" @click="act('fixAll')"><i class="bi bi-magic" aria-hidden="true"></i>Fix automatically</button>
+      </div>
+      <div v-for="iss in shownIssues" :key="iss.id" class="issue" :class="'sev' + iss.severity">
+        <i class="bi ico" :class="iss.severity === 2 ? 'bi-exclamation-circle-fill' : 'bi-exclamation-triangle-fill'" aria-hidden="true"></i>
+        <div><div class="what">{{ iss.title }}</div><div class="why">{{ iss.detail }}</div></div>
+        <div class="fixes">
+          <button v-for="fx in fixesFor(iss)" :key="fx.label" type="button" class="btn btn-quiet fix-btn" @click="act('applyFix', fx)"><i class="bi bi-magic" aria-hidden="true"></i>{{ fx.label }}<span v-if="fx.partial" class="meta">(helps)</span></button>
+          <button v-if="iss.i != null" type="button" class="btn btn-link-quiet" @click="openDay(iss.i)">View day</button>
+          <a v-if="iss.pid && iss.i == null" class="btn btn-link-quiet" :href="'#person-' + iss.pid">View {{ nameOf(iss.pid) }}</a>
+        </div>
+        <div class="nofix" v-if="!fixesFor(iss).length">No single change fixes this. Move an RDO or ask someone to swap.</div>
+      </div>
+      <div v-if="issues.length > 4" class="p-2 border-top" style="border-color: var(--hair) !important">
+        <button type="button" class="btn btn-link-quiet" @click="ui.issuesAll = !ui.issuesAll">{{ ui.issuesAll ? 'Show fewer' : 'Show all ' + issues.length + ' problems' }}</button>
+      </div>
+    </template>
+  </section>
+
+  <section class="surface" aria-label="Roster grid">
+    <div class="grid-wrap" @keydown="gridKey">
+      <table class="rgrid" :class="{ week: ui.rosterView === 'week' }">
+        <thead>
+          <tr class="weeks" v-if="ui.rosterView === 'period'">
+            <th class="sticky" scope="col"><span class="visually-hidden">Person</span></th>
+            <th v-for="w in period.weeks" :key="w" colspan="5" scope="colgroup" :class="(w - 1) % 2 === 0 ? 'pp' : 'wk'">Week {{ w }} <span class="text-3">· pay period {{ Math.floor((w - 1) / 2) + 1 }}</span></th>
+          </tr>
+          <tr>
+            <th class="sticky" scope="col">Person</th>
+            <th v-for="d in visibleDays" :key="d.iso" scope="col" :class="ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : ''">
+              <button type="button" class="dayhead" :class="{ short: issueDays.has(d.i), today: d.iso === todayIso }" @click="openDay(d.i)" :aria-label="'Open ' + nice(d.iso) + (issueDays.has(d.i) ? ', has problems' : '')">
+                <span>{{ E.DAYS[d.dow - 1] }}</span><span class="d">{{ fmt(d.iso) }}</span>
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(p, ri) in people" :key="p.id">
+            <th class="sticky" scope="row"><a class="who" :class="{ vacant: v(p) === 'Vacant' }" :href="'#person-' + p.id"><span class="nm">{{ v(p) }}</span><span class="role">{{ p.role }}</span></a></th>
+            <td v-for="(d, ci) in visibleDays" :key="d.iso" :class="[cellClass(cellOf(p, d)), { changed: isChanged(p, d), pending: pendingCells.has(p.id + '|' + d.iso), clash: clashCells.has(p.id + '|' + d.iso) }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">
+              <button type="button" class="cell" :data-r="ri" :data-c="ci" @click="openCell($event, p, d)" :aria-label="v(p) + ', ' + nice(d.iso) + ': ' + cellOf(p, d) + (isChanged(p, d) ? ', changed for this day' : '') + (pendingCells.has(p.id + '|' + d.iso) ? ', ' + pendingCells.get(p.id + '|' + d.iso) : '') + (duties(p, d).length ? ', ' + duties(p, d).join(', ') : '')">
+                <span>{{ cellOf(p, d) }}</span>
+                <span v-if="ui.rosterView === 'week' && duties(p, d).length" class="duty">{{ duties(p, d).join(', ') }}</span>
+                <span v-else-if="ui.rosterView === 'week' && pendingCells.has(p.id + '|' + d.iso)" class="duty">{{ pendingCells.get(p.id + '|' + d.iso) }}</span>
+              </button>
+            </td>
+          </tr>
+          <tr v-if="!people.length"><td :colspan="visibleDays.length + 1" class="text-start p-0"><div class="empty"><h3>No one matches</h3><p>Nobody on this roster fits the search or filters.</p><button type="button" class="btn btn-quiet" @click="clearFilters">Clear all filters</button></div></td></tr>
+
+          <tr class="band"><th class="sticky" scope="row">Cover</th><td :colspan="visibleDays.length"></td></tr>
+          <tr class="cov">
+            <th class="sticky" scope="row">On {{ eff.shifts.early }} <span class="meta">min {{ eff.rules.minEarly }}</span></th>
+            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].early < eff.rules.minEarly }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].early }}</td>
+          </tr>
+          <tr class="cov">
+            <th class="sticky" scope="row">On {{ eff.shifts.late }} <span class="meta">min {{ eff.rules.minLate }}</span></th>
+            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].late < eff.rules.minLate }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].late }}</td>
+          </tr>
+          <tr class="cov">
+            <th class="sticky" scope="row">{{ E.seniorLabel(eff).replace(' on duty', '') }} <span class="meta">min {{ eff.rules.minSenior }}</span></th>
+            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].senior < eff.rules.minSenior }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].senior }}</td>
+          </tr>
+          <tr class="cov" v-if="R.cols[0].siteB != null">
+            <th class="sticky" scope="row">{{ eff.rules.siteB.label }} <span class="meta">min {{ eff.rules.siteB.min }}</span></th>
+            <td v-for="d in visibleDays" :key="d.iso" class="n" :class="[{ low: R.cols[d.i].siteB < eff.rules.siteB.min }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">{{ R.cols[d.i].siteB }}</td>
+          </tr>
+
+          <template v-if="rotRows.length">
+            <tr class="band"><th class="sticky" scope="row">Rotations</th><td :colspan="visibleDays.length"></td></tr>
+            <tr v-for="(row, rj) in rotRows" :key="row.key" :class="row.cls">
+              <th class="sticky" scope="row">{{ row.label }} <span class="meta">{{ row.note }}</span></th>
+              <td v-for="(d, ci) in visibleDays" :key="d.iso" class="rc" :class="[{ clash: rotClash(row, d), manual: (R.cols[d.i].manual || {})[row.key] }, ui.rosterView === 'period' && weekStart(d) ? (d.w % 2 === 0 ? 'pp' : 'wk') : '']">
+                <button type="button" class="rot-cell" :data-r="people.length + 10 + rj" :data-c="ci" @click="openRot($event, row, d)" :aria-label="row.label + ', ' + nice(d.iso) + ': ' + R.cols[d.i][row.col] + (rotClash(row, d) ? ', needs cover' : '')">{{ R.cols[d.i][row.col] }}</button>
+              </td>
+              </tr>
+          </template>
+        </tbody>
+      </table>
+    </div>
+    <div class="legend" aria-label="Key">
+      <span><i style="background: var(--early)"></i>{{ eff.shifts.early }}</span>
+      <span><i style="background: var(--late)"></i>{{ eff.shifts.late }}</span>
+      <span><i style="background: var(--rdo)"></i>RDO</span>
+      <span><i style="background: var(--leave)"></i>Leave</span>
+      <span><i class="mk-changed"></i>Changed for one day</span>
+      <span><i class="mk-pending"></i>Pending request</span>
+      <span><i class="mk-clash"></i>Needs cover</span>
+      <span class="ms-auto text-3">Select a cell to change it. Arrow keys move between cells.</span>
+    </div>
+  </section>
 </div>
-
-<div class="status gutter"><div class="inner" id="status" aria-live="polite"></div></div>
-
-<nav class="tabs gutter" aria-label="Sections"><div class="inner" id="tabs"></div></nav>
-
-<main class="gutter"><div class="inner" id="view"></div></main>
-<footer class="gutter"><div class="inner">Sample names are made up. Your setup is kept in this browser only, so save the .xlsx to keep a copy.</div></footer>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
-<script>
-/* Roster Builder core: model, compute (mirrors the workbook formulas), auto-plan, xlsx writer, xlsx reader.
-   Works in Node (tests) and the browser (app). */
-(function (root) {
-  'use strict';
-
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  const GROUPS = ['leader', 'senior', 'analyst'];
-  const GROUP_LABEL = { leader: 'Lead', senior: 'Senior', analyst: 'Analyst' };
-  const uid = () => Math.random().toString(36).slice(2, 9);
-
-  /* ---------- dates (all UTC, ISO strings 'YYYY-MM-DD') ---------- */
-  const toDate = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)); };
-  const toIso = dt => dt.toISOString().slice(0, 10);
-  const addDays = (iso, n) => { const d = toDate(iso); d.setUTCDate(d.getUTCDate() + n); return toIso(d); };
-  const dowOf = iso => (toDate(iso).getUTCDay() + 6) % 7 + 1; // 1 = Mon
-  const mondayOnOrAfter = iso => { const w = dowOf(iso); return w === 1 ? iso : addDays(iso, 8 - w); };
-  const fmtDate = (iso, withYear) => { const d = toDate(iso); const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return d.getUTCDate() + ' ' + M[d.getUTCMonth()] + (withYear ? ' ' + d.getUTCFullYear() : ''); };
-
-  /* ---------- default model ---------- */
-  function defaultConfig() {
-    const today = new Date(); const iso = toIso(new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())));
-    const p = (role, name, group, pattern, plan) => ({ id: uid(), role, name, group, pattern, plan });
-    return {
-      v: 1,
-      title: 'IT Team Roster',
-      start: mondayOnOrAfter(iso),
-      weeks: 4,
-      shifts: { early: '7-4', late: '8-5' },
-      people: [
-        p('Team Leader', 'Alex', 'leader', 'early', [{ week: 2, day: 5, shift: 'early' }, { week: 2, day: 5, shift: 'early' }]),
-        p('Specialist', 'Bree', 'senior', 'alt', [{ week: 2, day: 1, shift: 'late' }, { week: 1, day: 1, shift: 'early' }]),
-        p('Senior 1', 'Chen', 'senior', 'alt', [{ week: 1, day: 1, shift: 'early' }, { week: 1, day: 5, shift: 'late' }]),
-        p('Senior 2', 'Dana', 'senior', 'alt', [{ week: 1, day: 5, shift: 'late' }, { week: 2, day: 1, shift: 'early' }]),
-        p('Analyst 1', 'Eli', 'analyst', 'alt', [{ week: 2, day: 1, shift: 'early' }, { week: 1, day: 1, shift: 'late' }]),
-        p('Analyst 2', 'Fatima', 'analyst', 'alt', [{ week: 1, day: 1, shift: 'early' }, { week: 1, day: 1, shift: 'late' }]),
-        p('Analyst 3', 'Gus', 'analyst', 'alt', [{ week: 1, day: 5, shift: 'early' }, { week: 2, day: 1, shift: 'late' }]),
-        p('Analyst 4', 'Hana', 'analyst', 'alt', [{ week: 2, day: 5, shift: 'early' }, { week: 1, day: 5, shift: 'late' }]),
-        p('Analyst 5', 'Isaac', 'analyst', 'alt', [{ week: 1, day: 1, shift: 'late' }, { week: 1, day: 5, shift: 'early' }]),
-        p('Analyst 6', 'Jade', 'analyst', 'alt', [{ week: 1, day: 5, shift: 'late' }, { week: 2, day: 5, shift: 'early' }]),
-        p('Analyst 7', 'Kofi', 'analyst', 'alt', [{ week: 2, day: 1, shift: 'late' }, { week: 2, day: 1, shift: 'early' }]),
-      ],
-      rules: {
-        minEarly: 3, minLate: 3, minSenior: 1, rdoDays: [1, 5],
-        frontDesk: { on: true, label: 'Front desk', start: 1 },
-        siteB: { on: true, label: 'Site B', min: 2, seat1: 1, seat2: 4 },
-        onCall: { on: true, label: 'On call', poolSize: 3, start: 1 },
-      },
-      leave: [],      // {id, pid, from, to, note}
-      swaps: [],      // {id, pid, from, to, reason}
-      overrides: {},  // "pid|iso" -> value
-    };
-  }
-
-  /* Bring any loaded config up to shape. */
-  function normalise(c) {
-    const d = defaultConfig();
-    c = Object.assign({}, d, c || {});
-    c.shifts = Object.assign({}, d.shifts, c.shifts);
-    c.rules = Object.assign({}, d.rules, c.rules);
-    for (const k of ['frontDesk', 'siteB', 'onCall']) c.rules[k] = Object.assign({}, d.rules[k], c.rules[k]);
-    c.weeks = [2, 4, 6, 8].includes(+c.weeks) ? +c.weeks : 4;
-    if (dowOf(c.start) !== 1) c.start = mondayOnOrAfter(c.start);
-    const F = c.weeks / 2;
-    c.people = (c.people || []).map(p => {
-      p = Object.assign({ id: uid(), role: 'Role', name: '', group: 'analyst', pattern: 'alt', plan: [] }, p);
-      if (!GROUPS.includes(p.group)) p.group = 'analyst';
-      const plan = [];
-      for (let f = 0; f < F; f++) {
-        const prev = plan[f - 1];
-        const q = Object.assign({}, p.plan[f] || { week: 1, day: 1, shift: prev ? (prev.shift === 'early' ? 'late' : 'early') : 'early' });
-        q.week = q.week === 2 ? 2 : 1; q.day = Math.min(5, Math.max(1, +q.day || 1)); q.shift = q.shift === 'late' ? 'late' : 'early';
-        if (p.pattern === 'early') q.shift = 'early'; if (p.pattern === 'late') q.shift = 'late';
-        plan.push(q);
-      }
-      p.plan = plan; return p;
-    });
-    c.leave = c.leave || []; c.swaps = c.swaps || []; c.overrides = c.overrides || {};
-    if (!Array.isArray(c.rules.rdoDays) || !c.rules.rdoDays.length) c.rules.rdoDays = [1, 5];
-    return c;
-  }
-
-  /* Orders: roster grid = leaders, seniors, analysts. Setup sheet = seniors, analysts, leaders (on-call pool = first N). */
-  const byGroup = (c, order) => order.flatMap(g => c.people.filter(p => p.group === g));
-  const rosterOrder = c => byGroup(c, ['leader', 'senior', 'analyst']);
-  const setupOrder = c => byGroup(c, ['senior', 'analyst', 'leader']);
-  const variable = p => (p.name || '').trim() || 'Vacant';
-
-  function seniorLabel(c) {
-    const bases = [...new Set(c.people.filter(p => p.group === 'senior').map(p => p.role.replace(/\s*\d+$/, '').trim()))].filter(Boolean);
-    return (bases.length ? bases.join('/') : 'Senior') + ' on duty';
-  }
-
-  /* ---------- compute: mirrors the workbook ---------- */
-  function compute(c) {
-    const N = c.weeks * 5, F = c.weeks / 2;
-    const E = c.shifts.early, L = c.shifts.late;
-    const days = [];
-    for (let i = 0; i < N; i++) { const w = Math.floor(i / 5); days.push({ i, w, dow: i % 5 + 1, f: Math.floor(w / 2), iso: addDays(c.start, 7 * w + (i % 5)) }); }
-    const ro = rosterOrder(c), so = setupOrder(c);
-    const analysts = so.filter(p => p.group === 'analyst');
-    const A = analysts.length;
-    const rdoDate = p => p.plan.map((q, f) => addDays(c.start, 7 * (2 * f + q.week - 1) + (q.day - 1)));
-    const rdoDates = new Map(c.people.map(p => [p.id, rdoDate(p)]));
-
-    // RDO change checks (same wording as the workbook).
-    const lastIso = addDays(c.start, 7 * c.weeks - 1);
-    const swapStatus = s => {
-      const p = c.people.find(x => x.id === s.pid);
-      if (!p) return '';
-      if (!s.from || !s.to) return 'Enter both dates';
-      const rd = rdoDates.get(p.id);
-      if (!rd.includes(s.from)) return "From date is not this person's RDO";
-      if (s.to < c.start || s.to > lastIso || dowOf(s.to) > 5) return 'To date is outside the roster or a weekend';
-      if (rd.includes(s.to)) return 'To date is already their RDO';
-      const fi = iso => Math.floor((toDate(iso) - toDate(c.start)) / 864e5 / 14);
-      return fi(s.from) !== fi(s.to) ? 'OK - moves to a different fortnight' : 'OK';
-    };
-    const swaps = c.swaps.map(s => ({ ...s, status: swapStatus(s) }));
-    const okSwaps = swaps.filter(s => s.status.startsWith('OK'));
-    const onLeave = (pid, iso) => c.leave.some(l => l.pid === pid && l.from && iso >= l.from && iso <= (l.to || l.from));
-
-    // Grid values.
-    const grid = new Map(); // pid -> [values]
-    const source = new Map(); // pid -> ['formula'|'leave'|'override']
-    for (const p of c.people) {
-      const rd = rdoDates.get(p.id); const vals = [], src = [];
-      for (const d of days) {
-        const ov = c.overrides[p.id + '|' + d.iso];
-        if (ov != null && ov !== '') { vals.push(ov); src.push('override'); continue; }
-        if (onLeave(p.id, d.iso)) { vals.push('Leave'); src.push('leave'); continue; }
-        const isStd = d.iso === rd[d.f] && !okSwaps.some(s => s.pid === p.id && s.from === d.iso);
-        const movedIn = okSwaps.some(s => s.pid === p.id && s.to === d.iso);
-        vals.push(isStd || movedIn ? 'RDO' : (p.plan[d.f].shift === 'late' ? L : E)); src.push('formula');
-      }
-      grid.set(p.id, vals); source.set(p.id, src);
-    }
-    const working = v => v === E || v === L;
-    const nameLookup = (name, i) => { const p = ro.find(x => variable(x) === name); return p ? grid.get(p.id)[i] : '?'; };
-
-    const mod = (x, m) => ((x % m) + m) % m;
-    const R = c.rules;
-    const pool = so.slice(0, Math.max(1, Math.min(R.onCall.poolSize, so.length)));
-    const cols = days.map(d => {
-      const out = { early: 0, late: 0, senior: 0 };
-      for (const p of ro) {
-        const v = grid.get(p.id)[d.i]; if (variable(p) === 'Vacant') continue;
-        if (v === E) out.early++; if (v === L) out.late++;
-        if (p.group === 'senior' && working(v)) out.senior++;
-      }
-      out.total = out.early + out.late;
-      if (R.siteB.on && A) {
-        out.seat1 = variable(analysts[mod(R.siteB.seat1 - 1 + d.w, A)]);
-        out.seat2 = variable(analysts[mod(R.siteB.seat2 - 1 + d.w - (d.dow < 3 ? 1 : 0), A)]);
-        out.siteB = [out.seat1, out.seat2].filter(n => n !== 'Vacant' && working(nameLookup(n, d.i))).length;
-      }
-      if (R.frontDesk.on && A) {
-        const sched = mod(R.frontDesk.start - 1 + d.i, A) + 1, next = mod(R.frontDesk.start - 1 + d.i + 1, A) + 1;
-        const dist = analysts.map((p, k0) => {
-          const k = k0 + 1, v = variable(p);
-          const ok = v !== 'Vacant' && working(grid.get(p.id)[d.i]) && (!(R.siteB.on) || (v !== out.seat1 && v !== out.seat2)) && (mod(k - sched, A) === 0 || k !== next);
-          return ok ? mod(k - sched, A) : 99;
-        });
-        const mn = Math.min(...dist);
-        out.fdSched = sched; out.fdDist = dist; out.fdWorked = mod(sched - 1 + mn, A) + 1;
-        out.frontDesk = mn >= 99 ? 'NO COVER' : variable(analysts[out.fdWorked - 1]);
-      }
-      if (R.onCall.on && so.length) out.onCall = variable(pool[mod(R.onCall.start - 1 + d.w, pool.length)]);
-      out.cover = (out.early >= R.minEarly && out.late >= R.minLate && out.senior >= R.minSenior && (!(R.siteB.on && A) || out.siteB >= R.siteB.min)) ? 'OK' : 'SHORT';
-      const rot = [];
-      if (R.frontDesk.on && A) rot.push(out.frontDesk);
-      if (R.siteB.on && A) rot.push(out.seat1, out.seat2);
-      if (R.onCall.on && so.length) rot.push(out.onCall);
-      if (rot.length) {
-        if (rot.some(n => n === 'NO COVER' || n === 'Vacant')) out.rotation = 'VACANT/GAP';
-        else out.rotation = rot.some(n => !working(nameLookup(n, d.i))) ? 'CONFLICT' : 'OK';
-      }
-      return out;
-    });
-    const perPerson = new Map(c.people.map(p => {
-      const v = grid.get(p.id);
-      const rdo = []; for (let f = 0; f < F; f++) rdo.push(v.slice(f * 10, f * 10 + 10).filter(x => x === 'RDO').length);
-      return [p.id, { rdo, worked: v.filter(working).length }];
-    }));
-    const summary = {
-      short: cols.filter(x => x.cover === 'SHORT').length,
-      conflict: cols.filter(x => x.rotation === 'CONFLICT').length,
-      gap: cols.filter(x => x.rotation === 'VACANT/GAP').length,
-      rdoIssues: c.people.filter(p => perPerson.get(p.id).rdo.some(n => n !== 1)).length,
-      badSwaps: swaps.filter(s => !s.status.startsWith('OK')).length,
-    };
-    return { days, grid, source, cols, perPerson, swaps, rdoDates, ro, so, analysts, pool, summary };
-  }
-
-  /* ---------- auto-plan: shifts + standard RDOs ---------- */
-  function autoPlan(c, opts = {}) {
-    const tries = opts.tries || 40;
-    const F = c.weeks / 2;
-    const allowed = c.rules.rdoDays.length ? c.rules.rdoDays : [1, 5];
-    const score = r => r.summary.short * 1000 + r.summary.conflict * 300 + r.summary.gap * 40 + r.summary.rdoIssues * 200 +
-      r.cols.reduce((a, x) => a + Math.pow(Math.max(0, 6 - Math.min(x.early - c.rules.minEarly, x.late - c.rules.minLate) ), 2), 0);
-    let best = null, bestScore = Infinity;
-    const rand = arr => arr[Math.floor(Math.random() * arr.length)];
-    const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
-    for (let t = 0; t < tries; t++) {
-      const cand = JSON.parse(JSON.stringify(c));
-      // Shifts: split each group evenly between early and late, alternating each fortnight.
-      for (const g of ['senior', 'analyst', 'leader']) {
-        const ps = shuffle(cand.people.filter(p => p.group === g && p.pattern === 'alt'));
-        const flip = Math.random() < 0.5;
-        ps.forEach((p, k) => { const s0 = (k % 2 === 0) !== flip ? 'early' : 'late';
-          p.plan.forEach((q, f) => { q.shift = f % 2 === 0 ? s0 : (s0 === 'early' ? 'late' : 'early'); }); });
-        cand.people.filter(p => p.group === g && p.pattern !== 'alt').forEach(p => p.plan.forEach(q => q.shift = p.pattern));
-      }
-      // RDOs: greedy, one fortnight at a time, people in random order.
-      for (const p of cand.people) p.plan.forEach(q => { q.week = 1; q.day = 0; }); // 0 = unplaced
-      for (let f = 0; f < F; f++) {
-        const order = shuffle(cand.people);
-        for (const p of order) {
-          let bestSlot = null, bs = -Infinity;
-          for (const week of [1, 2]) for (const day of allowed) {
-            p.plan[f].week = week; p.plan[f].day = day;
-            const s = -score(compute(cand)) + Math.random() * 2;
-            if (s > bs) { bs = s; bestSlot = { week, day }; }
-          }
-          p.plan[f].week = bestSlot.week; p.plan[f].day = bestSlot.day;
-        }
-      }
-      cand.people.forEach(p => p.plan.forEach(q => { if (!q.day) q.day = allowed[0]; }));
-      const r = compute(cand); const s = score(r);
-      if (s < bestScore) { bestScore = s; best = cand; if (r.summary.short + r.summary.conflict + r.summary.rdoIssues === 0 && t > tries / 4) break; }
-    }
-    // Drop swaps that no longer start on an RDO.
-    const r = compute(best);
-    best.swaps = best.swaps.filter((s, i) => r.swaps[i].status.startsWith('OK'));
-    return best;
-  }
-
-  /* ---------- xlsx writer (ExcelJS) ---------- */
-  const colL = n => { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
-  const NAVY = 'FF1F3864', INPUT = 'FFFFF2CC', BAND = 'FFD9E1F2', GREY = 'FF7F7F7F', RED = 'FFFF9999';
-  const fill = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
-  const dxf = argb => ({ fill: { type: 'pattern', pattern: 'solid', bgColor: { argb } } });
-  const thin = { style: 'thin', color: { argb: 'FFBFBFBF' } };
-  const serial = iso => (toDate(iso) - Date.UTC(1899, 11, 30)) / 864e5;
-  const safeName = (role, used) => {
-    let n = role.trim().replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'Role';
-    if (/^\d/.test(n)) n = 'R_' + n;
-    if (/^[A-Za-z]{1,3}\d+$/.test(n) || /^[RrCc]$/.test(n) || /^[Rr]\d*[Cc]\d*$/.test(n)) n = 'Role_' + n;
-    let k = n, i = 2; while (used.has(k.toLowerCase())) k = n + '_' + i++;
-    used.add(k.toLowerCase()); return k;
-  };
-
-  function buildWorkbook(ExcelJS, c, r) {
-    c = normalise(c); r = r || compute(c);
-    const wb = new ExcelJS.Workbook();
-    wb.creator = 'Roster Builder'; wb.calcProperties = { fullCalcOnLoad: true };
-    const E = c.shifts.early, L = c.shifts.late, R = c.rules;
-    const N = c.weeks * 5, F = c.weeks / 2;
-    const ro = r.ro, so = r.so, analysts = r.analysts, A = analysts.length;
-    const sb = R.siteB.on && A > 0, fd = R.frontDesk.on && A > 0, oc = R.onCall.on && so.length > 0;
-    const font = (o = {}) => Object.assign({ name: 'Calibri', size: 10 }, o);
-
-    /* Sheets: Roster first (formulas reference sheets by name, so order is free). */
-    const rs = wb.addWorksheet('Roster', { views: [{ state: 'frozen', xSplit: 2, ySplit: 7 }] });
-    const su = wb.addWorksheet('Setup', { views: [{ state: 'frozen', ySplit: 1 }] });
-    const ro_ = wb.addWorksheet('RDO');
-
-    su.columns = [{ width: 16 }, { width: 18 }, { width: 22 }, { width: 10 }, { width: 3 }, { width: 40 }, { width: 18 }, { width: 80 }];
-    ['Role', 'Name (type here)', 'Variable used on roster', 'Group', '', 'Rule', 'Setting', 'How it works'].forEach((h, i) => {
-      const cell = su.getCell(1, i + 1); cell.value = h || null;
-      if (h) { cell.font = font({ bold: true, color: { argb: 'FFFFFFFF' } }); cell.fill = fill(NAVY); cell.alignment = { vertical: 'middle' }; }
-    });
-    const varAddr = new Map(); const usedNames = new Set();
-    so.forEach((p, k) => {
-      const row = 2 + k;
-      su.getCell(row, 1).value = p.role; su.getCell(row, 1).font = font({ bold: true });
-      const b = su.getCell(row, 2); b.value = p.name || null; b.fill = fill(INPUT); b.font = font();
-      const cc = su.getCell(row, 3); cc.value = { formula: `IF(TRIM(B${row})="","Vacant",TRIM(B${row}))`, result: variable(p) }; cc.font = font();
-      su.getCell(row, 4).value = GROUP_LABEL[p.group]; su.getCell(row, 4).font = font({ color: { argb: GREY } });
-      [1, 2, 3, 4].forEach(ci => su.getCell(row, ci).border = { top: thin, left: thin, bottom: thin, right: thin });
-      const nm = safeName(p.role, usedNames); cc.name = nm;
-      varAddr.set(p.id, { row, ref: `Setup!$C$${row}`, name: nm });
-    });
-    const firstVar = 2, lastVar = 1 + so.length;
-    const anaRows = analysts.map(p => varAddr.get(p.id).row);
-    const anaRange = A ? `Setup!$C$${anaRows[0]}:$C$${anaRows[A - 1]}` : null;
-
-    // Rules
-    const rules = [];
-    const rule = (key, label, value, note, input, numFmt) => rules.push({ key, label, value, note, input, numFmt });
-    rule('vacant', 'Vacant rule', 'Vacant', "If the name next to a role is empty, that role's variable shows Vacant. Vacant people are left out of coverage counts and rotations flag them.");
-    rule('start', 'Roster start date', toDate(c.start), `Must be a Monday. The roster runs ${c.weeks} weeks (${N} weekdays) from this date. To change the length, rebuild it in Roster Builder.`, true, 'ddd d mmm yyyy');
-    rule('leads', 'Leads', 'Not in rotations', 'Lead roles sit in the roster grid and count toward shift cover and total on duty, not toward the senior count. They are never in a rotation.');
-    rule('shifts', 'Shifts', `${E} / ${L}`, 'Early and late groups swap each fortnight (set per person on the RDO sheet).');
-    rule('rdo', 'RDO', '1 per fortnight', 'Standard RDOs are set on the RDO sheet. RDO columns on the roster turn red if a person does not have exactly 1 per fortnight.');
-    rule('move', 'Moving an RDO', 'RDO sheet', 'Record swaps in the RDO changes table on the RDO sheet. The roster applies them to that person only and rotations are unaffected.');
-    rule('manual', 'Manual edits', 'Overtype', 'You can also overtype any roster cell (the dropdown has Leave). It changes that cell only; no rotation is rebuilt around it.');
-    rule('pay', 'Payroll', 'Fortnightly', 'Week labels sit above the dates; each pay period covers two roster weeks.');
-    rule('minEarly', `Minimum on ${E} per day`, R.minEarly, 'Cover check turns SHORT if fewer.', true);
-    rule('minLate', `Minimum on ${L} per day`, R.minLate, 'Cover check turns SHORT if fewer.', true);
-    rule('minSenior', `Minimum ${seniorLabel(c).replace(/ on duty$/, '')} on duty`, R.minSenior, 'Counts the senior group on either shift.', true);
-    if (fd) rule('fdStart', `${R.frontDesk.label}: analyst # on day 1 (1-${A})`, R.frontDesk.start, `1 person, rotates daily through the analysts on a fixed day-by-day schedule. If that analyst is on RDO, leave${sb ? ', ' + R.siteB.label : ''} or Vacant, the next free analyst covers that day only.`, true);
-    if (sb) {
-      rule('sbMin', `${R.siteB.label} minimum on duty`, R.siteB.min, `Cover check turns SHORT if fewer than this are working at ${R.siteB.label}.`, true);
-      rule('sbSeat1', `${R.siteB.label} seat 1: analyst # in week 1 (1-${A})`, R.siteB.seat1, 'Rotates weekly, Monday to Friday.', true);
-      rule('sbSeat2', `${R.siteB.label} seat 2: analyst # from Wed of week 1 (1-${A})`, R.siteB.seat2, 'Rotates weekly, Wednesday to Tuesday (staggered from seat 1). Mon/Tue of week 1 use the analyst before this one.', true);
-    }
-    if (oc) {
-      rule('ocPool', `${R.onCall.label} pool size`, r.pool.length, `Rotation uses the first N roles in column A (leads are listed last). ${so.filter(p => p.group === 'senior').length} = senior group only.`, true);
-      rule('ocStart', `${R.onCall.label}: pool position in week 1`, R.onCall.start, 'Rotates weekly (Mon-Sun) through the pool.', true);
-    }
-    rule('rotcheck', 'Rotation check', 'Automatic', 'CONFLICT = rotation person on RDO/leave. VACANT/GAP = a rotation role is Vacant or nobody is free.');
-    rule('rotover', 'Rotation overrides', 'Dropdown', 'Overtype or pick from the dropdown in any rotation cell to swap someone for a day.');
-    const S = {};
-    rules.forEach((ru, k) => {
-      const row = 2 + k; S[ru.key] = `Setup!$G$${row}`;
-      const a = su.getCell(row, 6), b = su.getCell(row, 7), n = su.getCell(row, 8);
-      a.value = ru.label; a.font = font({ bold: true }); a.alignment = { vertical: 'middle', wrapText: true };
-      b.value = ru.value; b.font = font(); b.alignment = { horizontal: 'center', vertical: 'middle' };
-      if (ru.numFmt) b.numFmt = ru.numFmt;
-      if (ru.input) b.fill = fill(INPUT);
-      n.value = ru.note; n.font = font(); n.alignment = { vertical: 'middle', wrapText: true };
-      [a, b, n].forEach(x => x.border = { top: thin, left: thin, bottom: thin, right: thin });
-    });
-    const noteRow = Math.max(lastVar, 1 + rules.length) + 2;
-    ['Yellow cells are inputs. Type a name next to each role.', 'Clear a name and its variable becomes Vacant everywhere on the roster.', 'Variable names (e.g. Senior_1, Analyst_3, Team_Leader) point at column C.', 'Built with Roster Builder. Open this file in the app to change the team, length or rotations.', 'Rapid prototype output, not an endorsed tool. Do not enter council data. For management review as a concept only.']
-      .forEach((t, k) => { const x = su.getCell(noteRow + k, 1); x.value = t; x.font = font({ size: 9, color: { argb: GREY } }); });
-    su.getCell(S.start.replace('Setup!', '').replace(/\$/g, '')).dataValidation = { type: 'date', operator: 'greaterThan', allowBlank: false, formulae: [new Date(Date.UTC(2000, 0, 1))], showErrorMessage: true, errorTitle: 'Date', error: 'Enter a Monday date.' };
-
-    /* RDO sheet */
-    const rd = ro_;
-    rd.getCell('A1').value = 'RDO Management'; rd.getCell('A1').font = font({ bold: true, size: 14 });
-    rd.getCell('A2').value = 'Standard RDOs (top table) feed the roster grid. Record any swap in the changes table below; do not edit the grid for swaps.'; rd.getCell('A2').font = font({ size: 9 });
-    const heads = ['Role', 'Name'];
-    for (let f = 0; f < F; f++) heads.push(`Fortnight ${f + 1} week (${2 * f + 1}-${2 * f + 2})`, `Fortnight ${f + 1} day`, `Fortnight ${f + 1} RDO date`, `Fortnight ${f + 1} shift`);
-    heads.forEach((h, i) => { const x = rd.getCell(4, i + 1); x.value = h; x.font = font({ bold: true, color: { argb: 'FFFFFFFF' } }); x.fill = fill(NAVY); x.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }; });
-    rd.getRow(4).height = 31.5;
-    rd.getColumn(1).width = 22; rd.getColumn(2).width = 18;
-    for (let f = 0; f < F; f++) { rd.getColumn(3 + 4 * f).width = 12; rd.getColumn(4 + 4 * f).width = 11; rd.getColumn(5 + 4 * f).width = 15; rd.getColumn(6 + 4 * f).width = 11; }
-    const rdoRow = new Map();
-    const firstRdo = 5, lastRdo = 4 + ro.length;
-    ro.forEach((p, k) => {
-      const row = 5 + k; rdoRow.set(p.id, row);
-      const va = varAddr.get(p.id);
-      const a = rd.getCell(row, 1); a.value = { formula: `Setup!A${va.row}`, result: p.role }; a.font = font({ bold: true });
-      const b = rd.getCell(row, 2); b.value = { formula: `Setup!C${va.row}`, result: variable(p) }; b.font = font();
-      const dates = r.rdoDates.get(p.id);
-      for (let f = 0; f < F; f++) {
-        const q = p.plan[f], c0 = 3 + 4 * f;
-        const wk = rd.getCell(row, c0); wk.value = 2 * f + q.week; wk.fill = fill(INPUT);
-        wk.dataValidation = { type: 'list', allowBlank: false, formulae: [`"${2 * f + 1},${2 * f + 2}"`] };
-        const dy = rd.getCell(row, c0 + 1); dy.value = DAYS[q.day - 1]; dy.fill = fill(INPUT);
-        dy.dataValidation = { type: 'list', allowBlank: false, formulae: [`"${DAYS.join(',')}"`] };
-        const dt = rd.getCell(row, c0 + 2);
-        dt.value = { formula: `${S.start}+7*(${colL(c0)}${row}-1)+MATCH(${colL(c0 + 1)}${row},{"Mon","Tue","Wed","Thu","Fri"},0)-1`, result: toDate(dates[f]) };
-        dt.numFmt = 'ddd d mmm';
-        const sh = rd.getCell(row, c0 + 3); sh.value = q.shift === 'late' ? L : E; sh.fill = fill(INPUT);
-        sh.dataValidation = { type: 'list', allowBlank: false, formulae: [`"${E},${L}"`] };
-        [wk, dy, dt, sh].forEach(x => { x.font = font(); x.alignment = { horizontal: 'center' }; });
-      }
-      for (let ci = 1; ci <= 2 + 4 * F; ci++) rd.getCell(row, ci).border = { top: thin, left: thin, bottom: thin, right: thin };
-    });
-    const chgTitle = lastRdo + 3, chgHead = chgTitle + 1, chg0 = chgHead + 1, chgRows = Math.max(20, c.swaps.length + 5), chg1 = chg0 + chgRows - 1;
-    rd.getCell(chgTitle, 1).value = "RDO changes (move one person's RDO without touching the grid or the rotations)"; rd.getCell(chgTitle, 1).font = font({ bold: true, size: 12 });
-    ['Name', 'Move RDO from (date)', 'Move RDO to (date)', 'Reason / approved by', 'Check'].forEach((h, i) => { const x = rd.getCell(chgHead, i + 1); x.value = h; x.font = font({ bold: true, color: { argb: 'FFFFFFFF' } }); x.fill = fill(NAVY); x.alignment = { horizontal: 'center' }; });
-    if (rd.getColumn(4).width < 26) rd.getColumn(4).width = 26;
-    if (rd.getColumn(5).width < 40) rd.getColumn(5).width = 40;
-    const CH = { name: `RDO!$A$${chg0}:$A$${chg1}`, from: `RDO!$B$${chg0}:$B$${chg1}`, to: `RDO!$C$${chg0}:$C$${chg1}`, check: `RDO!$E$${chg0}:$E$${chg1}` };
-    const nameRange = `$B$${firstRdo}:$B$${lastRdo}`;
-    const dateCols = []; for (let f = 0; f < F; f++) dateCols.push(colL(5 + 4 * f));
-    for (let k = 0; k < chgRows; k++) {
-      const row = chg0 + k, s = c.swaps[k], st = r.swaps[k];
-      const p = s && c.people.find(x => x.id === s.pid);
-      const a = rd.getCell(row, 1); a.value = p ? variable(p) : null; a.dataValidation = { type: 'list', allowBlank: true, formulae: [nameRange] };
-      const b = rd.getCell(row, 2); b.value = s && s.from ? toDate(s.from) : null; b.numFmt = 'ddd d mmm yyyy';
-      const cc = rd.getCell(row, 3); cc.value = s && s.to ? toDate(s.to) : null; cc.numFmt = 'ddd d mmm yyyy';
-      [b, cc].forEach(x => x.dataValidation = { type: 'date', operator: 'greaterThan', allowBlank: true, formulae: [new Date(Date.UTC(2000, 0, 1))] });
-      const d = rd.getCell(row, 4); d.value = s ? (s.reason || null) : null;
-      const idx = col => `INDEX($${col}$${firstRdo}:$${col}$${lastRdo},MATCH($A${row},${nameRange},0))`;
-      const notFrom = 'AND(' + dateCols.map(dc => `${idx(dc)}<>$B${row}`).join(',') + ')';
-      const isTo = 'OR(' + dateCols.map(dc => `${idx(dc)}=$C${row}`).join(',') + ')';
-      const f = `IF($A${row}="","",IF(OR($B${row}="",$C${row}=""),"Enter both dates",IFERROR(IF(${notFrom},"From date is not this person's RDO",IF(OR($C${row}<${S.start},$C${row}>${S.start}+${7 * c.weeks - 1},WEEKDAY($C${row},2)>5),"To date is outside the roster or a weekend",IF(${isTo},"To date is already their RDO",IF(INT(($B${row}-${S.start})/14)<>INT(($C${row}-${S.start})/14),"OK - moves to a different fortnight","OK")))),"Name not found")))`;
-      const e = rd.getCell(row, 5); e.value = { formula: f, result: st ? st.status : '' };
-      [a, b, cc, d].forEach(x => { x.fill = fill(INPUT); x.font = font(); });
-      e.font = font();
-      for (let ci = 1; ci <= 5; ci++) rd.getCell(row, ci).border = { top: thin, left: thin, bottom: thin, right: thin };
-    }
-    rd.addConditionalFormatting({ ref: `E${chg0}:E${chg1}`, rules: [
-      { type: 'expression', priority: 1, formulae: [`AND(E${chg0}<>"",LEFT(E${chg0},2)<>"OK")`], style: dxf(RED) },
-      { type: 'expression', priority: 2, formulae: [`LEFT(E${chg0},4)="OK -"`], style: dxf('FFFFE699') } ] });
-    const ex = ro.find(p => p.group === 'analyst') || ro[0];
-    if (ex) { const x = rd.getCell(chg1 + 2, 1); x.value = `Example: ${variable(ex)} | ${DAYS[ex.plan[0].day - 1]} ${fmtDate(r.rdoDates.get(ex.id)[0])} | ${DAYS[ex.plan[0].day % 5]} ... | requested by employee   (a change only applies when its Check starts with OK)`; x.font = font({ size: 9, color: { argb: GREY } }); }
-
-    /* Roster sheet */
-    const C0 = 3, lastDay = C0 + N - 1;
-    const dc = i => colL(C0 + i);
-    const r0 = 8, r1 = 7 + ro.length;
-    const personRow = new Map(ro.map((p, k) => [p.id, r0 + k]));
-    let row = r1 + 2;
-    const RW = {};
-    RW.covHead = row++; RW.early = row++; RW.late = row++; RW.total = row++; RW.senior = row++;
-    if (sb) RW.siteB = row++;
-    RW.cover = row++;
-    const anyRot = fd || sb || oc;
-    if (anyRot) { row++; RW.rotHead = row++; if (fd) RW.fd = row++; if (sb) { RW.seat1 = row++; RW.seat2 = row++; } if (oc) RW.oc = row++; RW.rotCheck = row++; }
-    row++; RW.helpHead = row++; RW.week = row++; RW.dow = row++;
-    if (fd) { RW.fdSched = row++; RW.fdWorked = row++; RW.dist0 = row; row += A; }
-    const lastRow = row - 1;
-    const statCol0 = lastDay + 1; // RDO count per fortnight, then Days worked
-    const daysCol = statCol0 + F;
-
-    rs.getColumn(1).width = 26; rs.getColumn(2).width = 13;
-    for (let i = 0; i < N; i++) rs.getColumn(C0 + i).width = 9;
-    for (let f = 0; f <= F; f++) rs.getColumn(statCol0 + f).width = 11;
-    const set = (r_, c_, v, st) => { const x = rs.getCell(r_, c_); x.value = v; if (st) Object.assign(x, st); return x; };
-    set(1, 1, c.title, { font: font({ bold: true, size: 16 }) }); rs.getRow(1).height = 20;
-    const sub = `${c.weeks} weeks from ${fmtDate(c.start, true)}  |  Swap an RDO on the RDO sheet. Shift cells also have a dropdown: ${E}, ${L}, RDO, Leave`;
-    set(2, 1, { formula: `"${c.weeks} weeks from "&TEXT(${S.start},"d mmm yyyy")&"  |  Swap an RDO on the RDO sheet. Shift cells also have a dropdown: ${E}, ${L}, RDO, Leave"`, result: sub }, { font: font({ size: 9 }) });
-    set(3, 1, `Blue = ${E}   Green = ${L}   Grey = RDO   Orange = Leave   Red = needs attention`, { font: font({ size: 9 }) });
-    const hdr = { font: font({ bold: true, color: { argb: 'FFFFFFFF' } }), fill: fill(NAVY), alignment: { horizontal: 'center', vertical: 'middle' } };
-    const wkBorder = i => (i % 5 === 0 ? { left: { style: 'medium', color: { argb: 'FF000000' } } } : { left: thin });
-    set(4, 1, 'Pay period', hdr); set(5, 1, 'Payroll week', hdr); set(6, 1, 'Day', hdr); set(7, 1, 'Name', hdr); set(7, 2, 'Role', hdr);
-    [4, 5, 6].forEach(rr => set(rr, 2, null, hdr));
-    for (let i = 0; i < N; i++) {
-      const d = r.days[i], col = C0 + i, L_ = dc(i);
-      if (i % 10 === 0) { set(4, col, { formula: `"Pay period "&(INT((${L_}$${RW.week}-1)/2)+1)`, result: `Pay period ${d.f + 1}` }, hdr); rs.mergeCells(4, col, 4, col + 9); }
-      if (i % 5 === 0) { set(5, col, { formula: `"Week "&(MOD(${L_}$${RW.week}-1,2)+1)`, result: `Week ${d.w % 2 + 1}` }, hdr); rs.mergeCells(5, col, 5, col + 4); }
-      set(6, col, { formula: `${L_}7`, result: toDate(d.iso) }, { ...hdr, numFmt: 'ddd', border: wkBorder(i) });
-      set(7, col, { formula: `${S.start}+${7 * d.w + (i % 5)}`, result: toDate(d.iso) }, { ...hdr, numFmt: 'd mmm', border: wkBorder(i) });
-    }
-    for (let f = 0; f < F; f++) set(7, statCol0 + f, `RDO wk ${2 * f + 1}-${2 * f + 2}`, hdr);
-    set(7, daysCol, 'Days worked', hdr);
-    for (let cc = statCol0; cc <= daysCol; cc++) [4, 5, 6].forEach(rr => set(rr, cc, null, hdr));
-
-    const dvShift = { type: 'list', allowBlank: true, formulae: [`"${E},${L},RDO,Leave"`] };
-    ro.forEach(p => {
-      const rr = personRow.get(p.id), va = varAddr.get(p.id), rdr = rdoRow.get(p.id);
-      set(rr, 1, { formula: va.name, result: variable(p) }, { font: font({ bold: true }) });
-      set(rr, 2, { formula: `Setup!A${va.row}`, result: p.role }, { font: font() });
-      const vals = r.grid.get(p.id), src = r.source.get(p.id);
-      for (let i = 0; i < N; i++) {
-        const d = r.days[i], L_ = dc(i);
-        const dCol = colL(5 + 4 * d.f), sCol = colL(6 + 4 * d.f);
-        const cell = rs.getCell(rr, C0 + i);
-        if (src[i] === 'formula') cell.value = { formula: `IF(OR(AND(${L_}$7=RDO!$${dCol}$${rdr},COUNTIFS(${CH.name},$A${rr},${CH.from},${L_}$7,${CH.check},"OK*")=0),COUNTIFS(${CH.name},$A${rr},${CH.to},${L_}$7,${CH.check},"OK*")>0),"RDO",RDO!$${sCol}$${rdr})`, result: vals[i] };
-        else cell.value = vals[i];
-        cell.font = font(); cell.alignment = { horizontal: 'center' }; cell.border = wkBorder(i); cell.dataValidation = dvShift;
-      }
-      const st = r.perPerson.get(p.id);
-      for (let f = 0; f < F; f++) set(rr, statCol0 + f, { formula: `COUNTIF(${dc(10 * f)}${rr}:${dc(10 * f + 9)}${rr},"RDO")`, result: st.rdo[f] }, { font: font(), alignment: { horizontal: 'center' } });
-      set(rr, daysCol, { formula: `COUNTIF(${dc(0)}${rr}:${dc(N - 1)}${rr},"${E}")+COUNTIF(${dc(0)}${rr}:${dc(N - 1)}${rr},"${L}")`, result: st.worked }, { font: font(), alignment: { horizontal: 'center' } });
-    });
-    const gridRef = `${dc(0)}${r0}:${dc(N - 1)}${r1}`;
-    rs.addConditionalFormatting({ ref: gridRef, rules: [
-      { type: 'cellIs', operator: 'equal', priority: 1, formulae: [`"${E}"`], style: dxf('FFBDD7EE') },
-      { type: 'cellIs', operator: 'equal', priority: 2, formulae: [`"${L}"`], style: dxf('FFC6E0B4') },
-      { type: 'cellIs', operator: 'equal', priority: 3, formulae: ['"RDO"'], style: dxf('FFD9D9D9') },
-      { type: 'cellIs', operator: 'equal', priority: 4, formulae: ['"Leave"'], style: dxf('FFF8CBAD') } ] });
-    rs.addConditionalFormatting({ ref: `${colL(statCol0)}${r0}:${colL(statCol0 + F - 1)}${r1}`, rules: [{ type: 'cellIs', operator: 'notEqual', priority: 5, formulae: ['1'], style: dxf(RED) }] });
-    rs.addConditionalFormatting({ ref: `A${r0}:A${r1}`, rules: [{ type: 'cellIs', operator: 'equal', priority: 6, formulae: ['"Vacant"'], style: { font: { color: { argb: 'FFC00000' }, bold: false } } }] });
-
-    // Coverage
-    const band = { font: font({ bold: true }), fill: fill(BAND) };
-    set(RW.covHead, 1, 'Coverage', band); for (let cc = 2; cc <= daysCol; cc++) set(RW.covHead, cc, null, { fill: fill(BAND) });
-    set(RW.early, 1, `On ${E}`, { font: font() }); set(RW.late, 1, `On ${L}`, { font: font() }); set(RW.total, 1, 'Total on duty', { font: font() });
-    set(RW.senior, 1, seniorLabel(c), { font: font() }); if (sb) set(RW.siteB, 1, `${R.siteB.label} on duty`, { font: font() });
-    set(RW.cover, 1, 'Cover check', { font: font({ bold: true }) });
-    const seniors = ro.filter(p => p.group === 'senior');
-    const sr0 = seniors.length ? personRow.get(seniors[0].id) : null, sr1 = seniors.length ? personRow.get(seniors[seniors.length - 1].id) : null;
-    const lookup = (L_, ref) => `IFERROR(INDEX(${L_}$${r0}:${L_}$${r1},MATCH(${ref},$A$${r0}:$A$${r1},0)),"?")`;
-    const isWork = (L_, ref) => `OR(${lookup(L_, ref)}="${E}",${lookup(L_, ref)}="${L}")`;
-    const notWork = (L_, ref) => `AND(${lookup(L_, ref)}<>"${E}",${lookup(L_, ref)}<>"${L}")`;
-    for (let i = 0; i < N; i++) {
-      const L_ = dc(i), col = C0 + i, x = r.cols[i], cst = { font: font(), alignment: { horizontal: 'center' }, border: wkBorder(i) };
-      set(RW.early, col, { formula: `SUMPRODUCT(($A$${r0}:$A$${r1}<>"Vacant")*(${L_}$${r0}:${L_}$${r1}="${E}"))`, result: x.early }, cst);
-      set(RW.late, col, { formula: `SUMPRODUCT(($A$${r0}:$A$${r1}<>"Vacant")*(${L_}$${r0}:${L_}$${r1}="${L}"))`, result: x.late }, cst);
-      set(RW.total, col, { formula: `${L_}${RW.early}+${L_}${RW.late}`, result: x.total }, cst);
-      set(RW.senior, col, seniors.length ? { formula: `SUMPRODUCT(($A$${sr0}:$A$${sr1}<>"Vacant")*((${L_}$${sr0}:${L_}$${sr1}="${E}")+(${L_}$${sr0}:${L_}$${sr1}="${L}")))`, result: x.senior } : 0, cst);
-      if (sb) set(RW.siteB, col, { formula: `IF(AND(${L_}${RW.seat1}<>"Vacant",${isWork(L_, L_ + RW.seat1)}),1,0)+IF(AND(${L_}${RW.seat2}<>"Vacant",${isWork(L_, L_ + RW.seat2)}),1,0)`, result: x.siteB }, cst);
-      const conds = [`${L_}${RW.early}>=${S.minEarly}`, `${L_}${RW.late}>=${S.minLate}`, `${L_}${RW.senior}>=${S.minSenior}`]; if (sb) conds.push(`${L_}${RW.siteB}>=${S.sbMin}`);
-      set(RW.cover, col, { formula: `IF(AND(${conds.join(',')}),"OK","SHORT")`, result: x.cover }, { ...cst, font: font({ bold: true }) });
-    }
-    rs.addConditionalFormatting({ ref: `${dc(0)}${RW.cover}:${dc(N - 1)}${RW.cover}`, rules: [{ type: 'cellIs', operator: 'equal', priority: 7, formulae: ['"SHORT"'], style: dxf(RED) }] });
-
-    // Rotations
-    if (anyRot) {
-      set(RW.rotHead, 1, 'Rotations (leads are not in any rotation)', band); for (let cc = 2; cc <= daysCol; cc++) set(RW.rotHead, cc, null, { fill: fill(BAND) });
-      if (fd) set(RW.fd, 1, `${R.frontDesk.label} (daily)`, { font: font() });
-      if (sb) { set(RW.seat1, 1, `${R.siteB.label} seat 1 (Mon-Fri)`, { font: font() }); set(RW.seat2, 1, `${R.siteB.label} seat 2 (Wed-Tue)`, { font: font() }); }
-      if (oc) set(RW.oc, 1, `${R.onCall.label} (weekly)`, { font: font() });
-      set(RW.rotCheck, 1, 'Rotation check', { font: font({ bold: true }) });
-      const rotDv = { type: 'list', allowBlank: true, formulae: [`Setup!$C$${firstVar}:$C$${lastVar}`] };
-      for (let i = 0; i < N; i++) {
-        const L_ = dc(i), col = C0 + i, x = r.cols[i], cst = { font: font(), alignment: { horizontal: 'center', vertical: 'middle', wrapText: true }, border: wkBorder(i), dataValidation: rotDv };
-        if (fd) set(RW.fd, col, { formula: `IF(MIN(${L_}${RW.dist0}:${L_}${RW.dist0 + A - 1})>=99,"NO COVER",INDEX(${anaRange},${L_}${RW.fdWorked}))`, result: x.frontDesk }, cst);
-        if (sb) {
-          set(RW.seat1, col, { formula: `INDEX(${anaRange},MOD(${S.sbSeat1}-1+${L_}$${RW.week}-1,ROWS(${anaRange}))+1)`, result: x.seat1 }, cst);
-          set(RW.seat2, col, { formula: `INDEX(${anaRange},MOD(${S.sbSeat2}-1+${L_}$${RW.week}-1-IF(${L_}$${RW.dow}<3,1,0),ROWS(${anaRange}))+1)`, result: x.seat2 }, cst);
-        }
-        if (oc) set(RW.oc, col, { formula: `INDEX(Setup!$C$${firstVar}:$C$${lastVar},MOD(${S.ocStart}-1+${L_}$${RW.week}-1,${S.ocPool})+1)`, result: x.onCall }, cst);
-        const refs = []; if (fd) refs.push(L_ + RW.fd); if (sb) refs.push(L_ + RW.seat1, L_ + RW.seat2); if (oc) refs.push(L_ + RW.oc);
-        const gap = [...(fd ? [`${L_}${RW.fd}="NO COVER"`] : []), ...refs.map(q => `${q}="Vacant"`)];
-        set(RW.rotCheck, col, { formula: `IF(OR(${gap.join(',')}),"VACANT/GAP",IF(OR(${refs.map(q => notWork(L_, q)).join(',')}),"CONFLICT","OK"))`, result: x.rotation }, { font: font({ bold: true }), alignment: { horizontal: 'center' }, border: wkBorder(i) });
-      }
-      const rotFill = (rr, argb, p) => rr && rs.addConditionalFormatting({ ref: `${dc(0)}${rr}:${dc(N - 1)}${rr}`, rules: [{ type: 'expression', priority: p, formulae: ['1'], style: dxf(argb) }] });
-      rotFill(RW.fd, 'FFFFE699', 8); rotFill(RW.seat1, 'FFF4B084', 9); rotFill(RW.seat2, 'FFF8CBAD', 10); rotFill(RW.oc, 'FFB4C6E7', 11);
-      rs.addConditionalFormatting({ ref: `${dc(0)}${RW.rotCheck}:${dc(N - 1)}${RW.rotCheck}`, rules: [{ type: 'cellIs', operator: 'notEqual', priority: 12, formulae: ['"OK"'], style: dxf(RED) }] });
-      [RW.fd, RW.seat1, RW.seat2, RW.oc].filter(Boolean).forEach(rr => rs.getRow(rr).height = 27.75);
-    }
-
-    // Helpers
-    const help = { font: font({ size: 9, color: { argb: GREY } }) };
-    set(RW.helpHead, 1, 'Helper rows (grouped - click + on the left to expand; do not edit)', help);
-    set(RW.week, 1, 'Roster week #', help); set(RW.dow, 1, 'Day of week (1=Mon)', help);
-    if (fd) { set(RW.fdSched, 1, `${R.frontDesk.label} scheduled analyst #`, help); set(RW.fdWorked, 1, `${R.frontDesk.label} analyst # worked`, help); analysts.forEach((p, k) => set(RW.dist0 + k, 1, `${p.role} distance`, help)); }
-    const hc = { ...help, alignment: { horizontal: 'center' } };
-    for (let i = 0; i < N; i++) {
-      const L_ = dc(i), col = C0 + i, d = r.days[i], x = r.cols[i];
-      set(RW.week, col, { formula: `INT((${L_}$7-${S.start})/7)+1`, result: d.w + 1 }, hc);
-      set(RW.dow, col, { formula: `WEEKDAY(${L_}$7,2)`, result: d.dow }, hc);
-      if (fd) {
-        set(RW.fdSched, col, { formula: `MOD(${S.fdStart}-1+${i},${A})+1`, result: x.fdSched }, hc);
-        set(RW.fdWorked, col, { formula: `MOD(${L_}${RW.fdSched}-1+MIN(${L_}${RW.dist0}:${L_}${RW.dist0 + A - 1}),${A})+1`, result: x.fdWorked }, hc);
-        analysts.forEach((p, k0) => {
-          const k = k0 + 1, vref = varAddr.get(p.id).ref.replace('Setup!', 'Setup!'), pr = personRow.get(p.id);
-          const seatCond = sb ? `,${vref}<>${L_}$${RW.seat1},${vref}<>${L_}$${RW.seat2}` : '';
-          set(RW.dist0 + k0, col, { formula: `IF(AND(${vref}<>"Vacant",OR(${L_}${pr}="${E}",${L_}${pr}="${L}")${seatCond},OR(MOD(${k}-${L_}$${RW.fdSched},${A})=0,${k}<>(MOD(${S.fdStart}-1+${i + 1},${A})+1))),MOD(${k}-${L_}$${RW.fdSched},${A}),99)`, result: x.fdDist[k0] }, hc);
-        });
-      }
-    }
-    for (let rr = RW.week; rr <= lastRow; rr++) { rs.getRow(rr).outlineLevel = 1; rs.getRow(rr).hidden = true; }
-    rs.properties.outlineLevelRow = 1;
-    rs.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
-
-    /* Hidden app data so the app can reopen this file */
-    const ad = wb.addWorksheet('AppData', { state: 'veryHidden' });
-    const json = JSON.stringify({ app: 'roster-builder', v: 1, config: c, layout: { personRow: [...personRow], rdoRow: [...rdoRow], setup: [...varAddr].map(([k, v]) => [k, v.row]), S, chg0, chgRows, C0, N } });
-    ad.getCell('A1').value = 'roster-builder';
-    for (let k = 0; k * 30000 < json.length; k++) ad.getCell(2 + k, 1).value = json.slice(k * 30000, (k + 1) * 30000);
-    return wb;
-  }
-
-  /* ---------- reader: reopen a file made by this app, picking up edits made in Excel ---------- */
-  async function readWorkbook(ExcelJS, buffer) {
-    const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buffer);
-    const ad = wb.getWorksheet('AppData');
-    if (!ad || ad.getCell('A1').value !== 'roster-builder') return null;
-    let json = ''; for (let k = 2; ad.getCell(k, 1).value; k++) json += ad.getCell(k, 1).value;
-    const data = JSON.parse(json); const c = normalise(data.config); const lay = data.layout;
-    const su = wb.getWorksheet('Setup'), rd = wb.getWorksheet('RDO'), rs = wb.getWorksheet('Roster');
-    const val = cell => { const v = cell.value; if (v && typeof v === 'object' && 'formula' in v) return { f: true, v: v.result }; if (v && typeof v === 'object' && v.richText) return { f: false, v: v.richText.map(t => t.text).join('') }; return { f: false, v }; };
-    const isoOf = v => v instanceof Date ? toIso(new Date(Date.UTC(v.getUTCFullYear(), v.getUTCMonth(), v.getUTCDate()))) : (typeof v === 'number' ? toIso(new Date(Date.UTC(1899, 11, 30) + v * 864e5)) : null);
-    const byId = new Map(c.people.map(p => [p.id, p]));
-    // Names
-    for (const [pid, row] of lay.setup) { const p = byId.get(pid); if (p) { const v = val(su.getCell(row, 2)).v; p.name = v == null ? '' : String(v).trim(); } }
-    // Settings
-    const num = key => { if (!lay.S[key]) return null; const a = lay.S[key].replace('Setup!', '').replace(/\$/g, ''); const v = val(su.getCell(a)).v; return v; };
-    const st = num('start'); if (st) { const iso = isoOf(st); if (iso) c.start = mondayOnOrAfter(iso); }
-    const n = (key, setter) => { const v = num(key); if (v != null && !isNaN(+v)) setter(+v); };
-    n('minEarly', v => c.rules.minEarly = v); n('minLate', v => c.rules.minLate = v); n('minSenior', v => c.rules.minSenior = v);
-    n('fdStart', v => c.rules.frontDesk.start = v); n('sbMin', v => c.rules.siteB.min = v); n('sbSeat1', v => c.rules.siteB.seat1 = v); n('sbSeat2', v => c.rules.siteB.seat2 = v);
-    n('ocPool', v => c.rules.onCall.poolSize = v); n('ocStart', v => c.rules.onCall.start = v);
-    // RDO plan
-    const F = c.weeks / 2;
-    for (const [pid, row] of lay.rdoRow) {
-      const p = byId.get(pid); if (!p) continue;
-      for (let f = 0; f < F; f++) {
-        const wk = +val(rd.getCell(row, 3 + 4 * f)).v, dy = DAYS.indexOf(String(val(rd.getCell(row, 4 + 4 * f)).v)), sh = String(val(rd.getCell(row, 6 + 4 * f)).v);
-        if (wk === 2 * f + 1 || wk === 2 * f + 2) p.plan[f].week = wk - 2 * f;
-        if (dy >= 0) p.plan[f].day = dy + 1;
-        if (sh === c.shifts.early) p.plan[f].shift = 'early'; else if (sh === c.shifts.late) p.plan[f].shift = 'late';
-      }
-    }
-    // RDO changes
-    const nameToId = new Map(c.people.map(p => [variable(p).toLowerCase(), p.id]));
-    c.swaps = [];
-    for (let k = 0; k < lay.chgRows; k++) {
-      const row = lay.chg0 + k, nm = val(rd.getCell(row, 1)).v;
-      if (!nm) continue;
-      const pid = nameToId.get(String(nm).trim().toLowerCase()); if (!pid) continue;
-      c.swaps.push({ id: uid(), pid, from: isoOf(val(rd.getCell(row, 2)).v), to: isoOf(val(rd.getCell(row, 3)).v), reason: val(rd.getCell(row, 4)).v || '' });
-    }
-    // Grid: any typed value (not a formula) becomes an override, except Leave already in leave ranges.
-    const r = compute({ ...c, overrides: {} });
-    const newOv = {};
-    for (const [pid, row] of lay.personRow) {
-      if (!byId.has(pid)) continue;
-      for (let i = 0; i < lay.N; i++) {
-        const cell = val(rs.getCell(row, lay.C0 + i));
-        if (cell.f) continue;
-        const v = cell.v == null ? '' : String(cell.v).trim();
-        const iso = r.days[i].iso;
-        if (v === 'Leave' && c.leave.some(l => l.pid === pid && iso >= l.from && iso <= (l.to || l.from))) continue;
-        newOv[pid + '|' + iso] = v;
-      }
-    }
-    c.overrides = newOv;
-    return c;
-  }
-
-  const api = { DAYS, GROUPS, GROUP_LABEL, uid, defaultConfig, normalise, compute, autoPlan, buildWorkbook, readWorkbook, rosterOrder, setupOrder, variable, seniorLabel,
-    addDays, dowOf, mondayOnOrAfter, fmtDate, toIso, toDate };
-  if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.RosterCore = api;
-})(typeof self !== 'undefined' ? self : this);
-
 </script>
-<script>
-(() => {
-  const C = window.RosterCore;
-  const $ = id => document.getElementById(id);
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const KEY = 'roster-builder:v1';
-  const TABS = [['roster', 'Roster'], ['team', 'Team'], ['plan', 'Shifts & RDOs'], ['rules', 'Rotations & cover'], ['leave', 'Leave & swaps']];
 
-  let cfg = null, R = null, history = [], flash = null;
-  try { const raw = localStorage.getItem(KEY); if (raw) cfg = C.normalise(JSON.parse(raw)); } catch (e) { cfg = null; }
-  if (!cfg) cfg = C.normalise(C.defaultConfig());
-
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) {} };
-  function commit(fn, note) {
-    history.push(JSON.stringify(cfg)); if (history.length > 40) history.shift();
-    fn(cfg); cfg = C.normalise(cfg); persist(); if (note) flash = { text: note, kind: 'good' }; render();
-  }
-  const person = id => cfg.people.find(p => p.id === id);
-  const label = p => p ? `${C.variable(p)} (${p.role})` : '?';
-  const codeOf = s => s === 'late' ? cfg.shifts.late : cfg.shifts.early;
-  const dayName = iso => C.DAYS[C.dowOf(iso) - 1];
-  const nice = iso => iso ? `${dayName(iso)} ${C.fmtDate(iso)}` : '';
-
-  /* ---------- tabs ---------- */
-  const tabNow = () => { const h = location.hash.slice(1); return TABS.some(t => t[0] === h) ? h : 'roster'; };
-  window.addEventListener('hashchange', render);
-
-  /* ---------- status ---------- */
-  function renderStatus() {
-    const s = R.summary, n = R.days.length, chips = [];
-    chips.push(s.short ? `<span class="chip bad"><i></i>Cover short on ${s.short} of ${n} days</span>` : `<span class="chip"><i></i>Cover OK all ${n} days</span>`);
-    const rot = s.conflict + s.gap;
-    if (cfg.rules.frontDesk.on || cfg.rules.siteB.on || cfg.rules.onCall.on)
-      chips.push(rot ? `<span class="chip bad"><i></i>Rotations: ${[s.conflict && s.conflict + ' conflict' + (s.conflict > 1 ? 's' : ''), s.gap && s.gap + ' gap' + (s.gap > 1 ? 's' : '')].filter(Boolean).join(', ')}</span>` : `<span class="chip"><i></i>Rotations OK</span>`);
-    chips.push(s.rdoIssues ? `<span class="chip bad"><i></i>${s.rdoIssues} ${s.rdoIssues > 1 ? 'people don\'t' : 'person doesn\'t'} have 1 RDO per fortnight</span>` : `<span class="chip"><i></i>1 RDO per fortnight each</span>`);
-    if (s.badSwaps) chips.push(`<span class="chip bad"><i></i>${s.badSwaps} RDO swap${s.badSwaps > 1 ? 's need' : ' needs'} fixing</span>`);
-    const m = flash ? `<span class="msg ${flash.kind}">${esc(flash.text)}</span>` : '';
-    $('status').innerHTML = chips.join('') + m;
-    $('undoBtn').disabled = !history.length;
-  }
-
-  /* ---------- roster grid ---------- */
-  function cellClass(v) { return v === cfg.shifts.early ? 'early' : v === cfg.shifts.late ? 'late' : v === 'RDO' ? 'rdo' : v === 'Leave' ? 'leave' : 'other'; }
-  function viewRoster() {
-    const d = R.days, F = cfg.weeks / 2, ro = R.ro;
-    const wk = i => i % 5 === 0 ? ' wk' : '';
-    let h = `<div class="panel"><h2>${esc(cfg.title)}</h2><p class="hint">${cfg.weeks} weeks from ${nice(cfg.start)} ${C.toDate(cfg.start).getUTCFullYear()}. Select a shift to change that day only (it shows a corner mark). Use the other tabs for RDOs, rotations and leave.</p><div class="scroll"><table class="grid"><thead>`;
-    h += `<tr><th class="sticky" scope="col">Pay period</th>`; for (let f = 0; f < F; f++) h += `<th colspan="10" class="wk">Pay period ${f + 1}</th>`; h += `<th colspan="${F + 1}"></th></tr>`;
-    h += `<tr><th class="sticky" scope="col">Week</th>`; for (let w = 0; w < cfg.weeks; w++) h += `<th colspan="5" class="wk">Week ${w % 2 + 1}</th>`; h += `<th colspan="${F + 1}"></th></tr>`;
-    h += `<tr><th class="sticky" scope="col">Name</th>`; d.forEach(x => h += `<th class="${wk(x.i).trim()}" scope="col">${C.DAYS[x.dow - 1]}<br>${C.fmtDate(x.iso)}</th>`);
-    for (let f = 0; f < F; f++) h += `<th scope="col">RDO<br>wk ${2 * f + 1}-${2 * f + 2}</th>`; h += `<th scope="col">Days<br>worked</th></tr></thead><tbody>`;
-    for (const p of ro) {
-      const vals = R.grid.get(p.id), src = R.source.get(p.id), st = R.perPerson.get(p.id), vac = C.variable(p) === 'Vacant';
-      h += `<tr><th class="sticky who${vac ? ' vacant' : ''}" scope="row"><b>${esc(C.variable(p))}</b><span>${esc(p.role)}</span></th>`;
-      d.forEach(x => { const v = vals[x.i], ov = src[x.i] !== 'formula';
-        h += `<td class="s ${cellClass(v)}${ov ? ' ov' : ''}${wk(x.i)}"><button type="button" data-cell="${p.id}|${x.iso}" aria-label="${esc(C.variable(p))} ${nice(x.iso)}: ${esc(v)}${ov ? ' (changed)' : ''}">${esc(v)}</button></td>`; });
-      st.rdo.forEach(n => h += `<td class="stat${n !== 1 ? ' bad' : ''}">${n}</td>`);
-      h += `<td class="stat">${st.worked}</td></tr>`;
-    }
-    const row = (name, fn, cls = '') => { let s = `<tr class="${cls}"><th class="sticky" scope="row">${esc(name)}</th>`; R.cols.forEach((c, i) => s += fn(c, i)); return s + `<td colspan="${F + 1}"></td></tr>`; };
-    const band = t => `<tr class="band"><th class="sticky" scope="row">${esc(t)}</th><td colspan="${d.length + F + 1}"></td></tr>`;
-    const num = k => (c, i) => `<td class="num${wk(i)}">${c[k]}</td>`;
-    h += band('Coverage');
-    h += row(`On ${cfg.shifts.early}`, num('early')) + row(`On ${cfg.shifts.late}`, num('late')) + row('Total on duty', num('total')) + row(C.seniorLabel(cfg), num('senior'));
-    const sb = cfg.rules.siteB.on && R.analysts.length, fd = cfg.rules.frontDesk.on && R.analysts.length, oc = cfg.rules.onCall.on;
-    if (sb) h += row(`${cfg.rules.siteB.label} on duty`, num('siteB'));
-    h += row('Cover check', (c, i) => `<td class="${c.cover === 'OK' ? 'ok' : 'badc'}${wk(i)}">${c.cover}</td>`);
-    if (fd || sb || oc) {
-      h += band('Rotations');
-      const working = (name, i) => { const p = ro.find(x => C.variable(x) === name); const v = p ? R.grid.get(p.id)[i] : '?'; return v === cfg.shifts.early || v === cfg.shifts.late; };
-      const rot = k => (c, i) => `<td class="rot${wk(i)}${c[k] === 'NO COVER' || c[k] === 'Vacant' || !working(c[k], i) ? ' clash' : ''}">${esc(c[k])}</td>`;
-      if (fd) h += row(`${cfg.rules.frontDesk.label} (daily)`, rot('frontDesk'), 'fd');
-      if (sb) h += row(`${cfg.rules.siteB.label} seat 1 (Mon-Fri)`, rot('seat1'), 'seat1') + row(`${cfg.rules.siteB.label} seat 2 (Wed-Tue)`, rot('seat2'), 'seat2');
-      if (oc) h += row(`${cfg.rules.onCall.label} (weekly)`, rot('onCall'), 'oc');
-      h += row('Rotation check', (c, i) => `<td class="${c.rotation === 'OK' ? 'ok' : 'badc'}${wk(i)}">${c.rotation}</td>`);
-    }
-    h += `</tbody></table></div><div class="legend"><span style="--c:var(--early)">${esc(cfg.shifts.early)}</span><span style="--c:var(--late)">${esc(cfg.shifts.late)}</span><span style="--c:var(--rdo)">RDO</span><span style="--c:var(--leave)">Leave</span><span style="--c:var(--bad)">Needs attention</span></div></div>`;
-    return h;
-  }
-
-  let menuEl = null;
-  function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
-  function openMenu(btn) {
-    closeMenu();
-    const [pid, iso] = btn.dataset.cell.split('|'), p = person(pid);
-    const key = pid + '|' + iso, has = cfg.overrides[key] != null;
-    const opts = [[cfg.shifts.early, 'var(--early)'], [cfg.shifts.late, 'var(--late)'], ['RDO', 'var(--rdo)'], ['Leave', 'var(--leave)']];
-    menuEl = document.createElement('div'); menuEl.className = 'menu'; menuEl.setAttribute('role', 'menu');
-    menuEl.innerHTML = `<div class="h">${esc(C.variable(p))}, ${nice(iso)}</div>` + opts.map(([v, c]) => `<button type="button" role="menuitem" data-v="${esc(v)}"><i style="--c:${c}"></i>${esc(v)}</button>`).join('') +
-      (has ? `<button type="button" role="menuitem" data-v="__clear">Back to the plan</button>` : '');
-    document.body.appendChild(menuEl);
-    const r = btn.getBoundingClientRect();
-    menuEl.style.left = Math.min(window.scrollX + r.left, window.scrollX + document.documentElement.clientWidth - menuEl.offsetWidth - 12) + 'px';
-    menuEl.style.top = (window.scrollY + r.bottom + 4) + 'px';
-    menuEl.querySelector('button').focus();
-    menuEl.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return;
-      const v = b.dataset.v; closeMenu();
-      commit(c => {
-        delete c.overrides[key];
-        if (v !== '__clear') { const planned = C.compute(c).grid.get(pid)[R.days.find(x => x.iso === iso).i]; if (v !== planned) c.overrides[key] = v; }
-      }, v === '__clear' ? `${C.variable(p)} on ${nice(iso)} is back to the plan.` : `${C.variable(p)} set to ${v} on ${nice(iso)}.`);
-    });
-    menuEl.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); btn.focus(); } });
-  }
-  document.addEventListener('click', e => { if (menuEl && !menuEl.contains(e.target) && !e.target.closest('[data-cell]')) closeMenu(); });
-
-  /* ---------- team ---------- */
-  function viewTeam() {
-    const g = C.GROUPS.map(x => [x, { leader: 'Lead (no rotations)', senior: 'Senior (senior cover, on call)', analyst: 'Analyst (front desk, seats)' }[x]]);
-    const pat = [['alt', 'Swap each fortnight'], ['early', `Always ${cfg.shifts.early}`], ['late', `Always ${cfg.shifts.late}`]];
-    const opt = (list, v) => list.map(([k, t]) => `<option value="${k}"${k === v ? ' selected' : ''}>${esc(t)}</option>`).join('');
-    let h = `<div class="stack"><div class="panel"><h2>Roster details</h2><div class="form">
-      <div class="field"><label for="f-title">Roster title</label><input type="text" id="f-title" data-k="title" value="${esc(cfg.title)}"></div>
-      <div class="field"><label for="f-start">Start date</label><input type="date" id="f-start" data-k="start" value="${cfg.start}"><small>Always a Monday. Other dates move to the next Monday.</small></div>
-      <div class="field"><label for="f-weeks">Length</label><select id="f-weeks" data-k="weeks">${[2, 4, 6, 8].map(w => `<option value="${w}"${w === cfg.weeks ? ' selected' : ''}>${w} weeks (${w / 2} pay period${w > 2 ? 's' : ''})</option>`).join('')}</select></div>
-    </div></div>
-    <div class="panel"><h2>Team</h2><p class="hint">Leave a name blank to show the role as Vacant. Roles must be unique; they become the role names in the workbook. Order in each group sets rotation order.</p>
-    <div class="scroll"><table class="t"><thead><tr><th>Role</th><th>Name</th><th>Group</th><th>Shift pattern</th><th></th></tr></thead><tbody>`;
-    C.rosterOrder(cfg).forEach(p => {
-      h += `<tr><td><input type="text" id="role-${p.id}" data-p="${p.id}" data-f="role" value="${esc(p.role)}" aria-label="Role"></td>
-        <td><input type="text" id="name-${p.id}" data-p="${p.id}" data-f="name" value="${esc(p.name)}" placeholder="Vacant" aria-label="Name for ${esc(p.role)}"></td>
-        <td><select id="grp-${p.id}" data-p="${p.id}" data-f="group" aria-label="Group for ${esc(p.role)}">${opt(g, p.group)}</select></td>
-        <td><select id="pat-${p.id}" data-p="${p.id}" data-f="pattern" aria-label="Shift pattern for ${esc(p.role)}">${opt(pat, p.pattern)}</select></td>
-        <td class="nowrap"><button type="button" class="small" data-up="${p.id}" aria-label="Move ${esc(p.role)} up">&uarr;</button> <button type="button" class="small" data-rm="${p.id}">Remove</button></td></tr>`;
-    });
-    h += `</tbody></table></div><div class="actions" style="margin-top:12px"><button type="button" data-add="analyst">Add analyst</button><button type="button" data-add="senior">Add senior</button><button type="button" data-add="leader">Add lead</button></div></div></div>`;
-    return h;
-  }
-
-  /* ---------- plan ---------- */
-  function viewPlan() {
-    const F = cfg.weeks / 2;
-    let h = `<div class="stack"><div class="panel"><h2>Auto-plan</h2><p class="hint">Splits each group across both shifts, swaps them each fortnight, then places one RDO per person per fortnight to keep cover up and avoid rotation clashes. Leave and day changes you've made are kept. You can fine-tune the result below.</p>
-      <div class="form" style="align-items:end">
-        <div class="field"><label for="sh-e">Early shift code</label><input type="text" id="sh-e" data-k="shifts.early" value="${esc(cfg.shifts.early)}"></div>
-        <div class="field"><label for="sh-l">Late shift code</label><input type="text" id="sh-l" data-k="shifts.late" value="${esc(cfg.shifts.late)}"></div>
-        <div class="field"><span class="lbl">RDO days allowed</span><div class="days">${C.DAYS.map((d, k) => `<label><input type="checkbox" data-rdoday="${k + 1}"${cfg.rules.rdoDays.includes(k + 1) ? ' checked' : ''}>${d}</label>`).join('')}</div></div>
-        <div class="field"><button type="button" class="primary" id="autoBtn">Auto-plan RDOs and shifts</button></div>
-      </div></div>
-      <div class="panel"><h2>Standard RDOs and shifts</h2><p class="hint">One RDO per person each fortnight. Changes here flow straight into the roster.</p><div class="scroll"><table class="t"><thead><tr><th>Person</th>`;
-    for (let f = 0; f < F; f++) h += `<th class="fort" colspan="3">Fortnight ${f + 1} (weeks ${2 * f + 1}-${2 * f + 2})</th>`;
-    h += `</tr></thead><tbody>`;
-    C.rosterOrder(cfg).forEach(p => {
-      const dates = R.rdoDates.get(p.id);
-      h += `<tr><td class="nowrap"><b>${esc(C.variable(p))}</b><br><span class="tag">${esc(p.role)}</span></td>`;
-      p.plan.forEach((q, f) => {
-        h += `<td class="fort"><select id="pw-${p.id}-${f}" data-plan="${p.id}" data-fn="${f}" data-pf="week" aria-label="RDO week">${[1, 2].map(w => `<option value="${w}"${q.week === w ? ' selected' : ''}>Week ${2 * f + w}</option>`).join('')}</select></td>
-          <td><select id="pd-${p.id}-${f}" data-plan="${p.id}" data-fn="${f}" data-pf="day" aria-label="RDO day">${C.DAYS.map((d, k) => `<option value="${k + 1}"${q.day === k + 1 ? ' selected' : ''}>${d}</option>`).join('')}</select><div class="tag">${C.fmtDate(dates[f])}</div></td>
-          <td><select id="ps-${p.id}-${f}" data-plan="${p.id}" data-fn="${f}" data-pf="shift" aria-label="Shift"${p.pattern !== 'alt' ? ' disabled' : ''}><option value="early"${q.shift === 'early' ? ' selected' : ''}>${esc(cfg.shifts.early)}</option><option value="late"${q.shift === 'late' ? ' selected' : ''}>${esc(cfg.shifts.late)}</option></select></td>`;
-      });
-      h += `</tr>`;
-    });
-    return h + `</tbody></table></div></div></div>`;
-  }
-
-  /* ---------- rules ---------- */
-  function viewRules() {
-    const r = cfg.rules, A = R.analysts.length, so = R.so.length;
-    const numf = (id, k, v, lab, min, max, note) => `<div class="field"><label for="${id}">${esc(lab)}</label><input type="number" id="${id}" data-k="${k}" value="${v}" min="${min}" max="${max}">${note ? `<small>${esc(note)}</small>` : ''}</div>`;
-    const txt = (id, k, v, lab) => `<div class="field"><label for="${id}">${esc(lab)}</label><input type="text" id="${id}" data-k="${k}" value="${esc(v)}"></div>`;
-    const tog = (id, k, on, lab) => `<legend><label class="check"><input type="checkbox" id="${id}" data-k="${k}"${on ? ' checked' : ''}>${esc(lab)}</label></legend>`;
-    return `<div class="stack"><div class="panel"><h2>Daily cover</h2><p class="hint">The cover check turns SHORT on any day below these numbers.</p><div class="form">
-      ${numf('m-e', 'rules.minEarly', r.minEarly, `Minimum on ${cfg.shifts.early}`, 0, 50)}
-      ${numf('m-l', 'rules.minLate', r.minLate, `Minimum on ${cfg.shifts.late}`, 0, 50)}
-      ${numf('m-s', 'rules.minSenior', r.minSenior, `Minimum ${C.seniorLabel(cfg).replace(/ on duty$/, '')} on duty`, 0, 20)}
-    </div></div>
-    <div class="panel"><h2>Rotations</h2><p class="hint">Rotations run through the analysts (front desk and seats) or the first people in the on-call pool. Positions are numbers in the analyst list on the Team tab.</p><div class="stack">
-      <fieldset>${tog('fd-on', 'rules.frontDesk.on', r.frontDesk.on, 'Front desk (daily)')}<div class="form">
-        ${txt('fd-l', 'rules.frontDesk.label', r.frontDesk.label, 'Name')}
-        ${numf('fd-s', 'rules.frontDesk.start', r.frontDesk.start, 'Analyst # on day 1', 1, Math.max(1, A), 'If that analyst is off or at a seat, the next free analyst covers.')}
-      </div></fieldset>
-      <fieldset>${tog('sb-on', 'rules.siteB.on', r.siteB.on, 'Second site, 2 seats (weekly)')}<div class="form">
-        ${txt('sb-l', 'rules.siteB.label', r.siteB.label, 'Site name')}
-        ${numf('sb-m', 'rules.siteB.min', r.siteB.min, 'Minimum on duty there', 0, 2)}
-        ${numf('sb-1', 'rules.siteB.seat1', r.siteB.seat1, 'Seat 1: analyst # in week 1', 1, Math.max(1, A), 'Runs Monday to Friday.')}
-        ${numf('sb-2', 'rules.siteB.seat2', r.siteB.seat2, 'Seat 2: analyst # from Wed of week 1', 1, Math.max(1, A), 'Runs Wednesday to Tuesday.')}
-      </div></fieldset>
-      <fieldset>${tog('oc-on', 'rules.onCall.on', r.onCall.on, 'On call (weekly)')}<div class="form">
-        ${txt('oc-l', 'rules.onCall.label', r.onCall.label, 'Name')}
-        ${numf('oc-p', 'rules.onCall.poolSize', r.onCall.poolSize, 'Pool size', 1, Math.max(1, so - cfg.people.filter(p => p.group === 'leader').length), `Seniors first, then analysts. ${cfg.people.filter(p => p.group === 'senior').length} = seniors only.`)}
-        ${numf('oc-s', 'rules.onCall.start', r.onCall.start, 'Pool position in week 1', 1, Math.max(1, r.onCall.poolSize))}
-      </div></fieldset>
-    </div></div></div>`;
-  }
-
-  /* ---------- leave & swaps ---------- */
-  function viewLeave() {
-    const people = C.rosterOrder(cfg);
-    const pick = (id, v, attrs) => `<select id="${id}" ${attrs}>${people.map(p => `<option value="${p.id}"${p.id === v ? ' selected' : ''}>${esc(label(p))}</option>`).join('')}</select>`;
-    const minD = cfg.start, maxD = C.addDays(cfg.start, 7 * cfg.weeks - 1);
-    let h = `<div class="split"><div class="panel"><h2>Leave</h2><p class="hint">Shows as Leave on the roster for each weekday in the range.</p>`;
-    if (!cfg.leave.length) h += `<p class="empty">No leave yet.</p>`;
-    else { h += `<div class="scroll"><table class="t"><thead><tr><th>Person</th><th>From</th><th>To</th><th>Note</th><th></th></tr></thead><tbody>`;
-      cfg.leave.forEach(l => h += `<tr><td>${pick('lp-' + l.id, l.pid, `data-leave="${l.id}" data-lf="pid" aria-label="Person"`)}</td><td><input type="date" id="lf-${l.id}" data-leave="${l.id}" data-lf="from" value="${l.from || ''}" min="${minD}" max="${maxD}" aria-label="From"></td><td><input type="date" id="lt-${l.id}" data-leave="${l.id}" data-lf="to" value="${l.to || ''}" min="${minD}" max="${maxD}" aria-label="To"></td><td><input type="text" id="ln-${l.id}" data-leave="${l.id}" data-lf="note" value="${esc(l.note || '')}" aria-label="Note"></td><td><button type="button" class="small" data-rmleave="${l.id}">Remove</button></td></tr>`);
-      h += `</tbody></table></div>`; }
-    h += `<div class="actions" style="margin-top:12px"><button type="button" id="addLeave">Add leave</button></div></div>`;
-    h += `<div class="panel"><h2>RDO swaps</h2><p class="hint">Moves one person's RDO without changing anyone else. These go in the RDO changes table in the workbook, with the same checks.</p>`;
-    if (!cfg.swaps.length) h += `<p class="empty">No swaps yet.</p>`;
-    else { h += `<div class="scroll"><table class="t"><thead><tr><th>Person</th><th>From RDO</th><th>To</th><th>Reason</th><th>Check</th><th></th></tr></thead><tbody>`;
-      cfg.swaps.forEach((s, k) => { const st = R.swaps[k].status, dates = R.rdoDates.get(s.pid) || [];
-        h += `<tr><td>${pick('sp-' + s.id, s.pid, `data-swap="${s.id}" data-sf="pid" aria-label="Person"`)}</td>
-          <td><select id="sf-${s.id}" data-swap="${s.id}" data-sf="from" aria-label="From RDO">${dates.map(d => `<option value="${d}"${d === s.from ? ' selected' : ''}>${nice(d)}</option>`).join('')}${s.from && !dates.includes(s.from) ? `<option value="${s.from}" selected>${nice(s.from)} (not an RDO)</option>` : ''}</select></td>
-          <td><input type="date" id="st-${s.id}" data-swap="${s.id}" data-sf="to" value="${s.to || ''}" min="${minD}" max="${maxD}" aria-label="To"></td>
-          <td><input type="text" id="sr-${s.id}" data-swap="${s.id}" data-sf="reason" value="${esc(s.reason || '')}" aria-label="Reason"></td>
-          <td><span class="pill ${st === 'OK' ? 'ok' : st.startsWith('OK') ? 'warn' : 'bad'}">${esc(st)}</span></td>
-          <td><button type="button" class="small" data-rmswap="${s.id}">Remove</button></td></tr>`; });
-      h += `</tbody></table></div>`; }
-    h += `<div class="actions" style="margin-top:12px"><button type="button" id="addSwap">Add RDO swap</button></div></div>`;
-    const ovs = Object.entries(cfg.overrides);
-    h += `<div class="panel" style="grid-column:1/-1"><h2>Single-day changes</h2><p class="hint">Made by selecting a cell on the Roster tab. They're typed straight into those cells in the workbook.</p>`;
-    if (!ovs.length) h += `<p class="empty">None yet.</p>`;
-    else { h += `<div class="scroll"><table class="t"><thead><tr><th>Person</th><th>Day</th><th>Set to</th><th></th></tr></thead><tbody>`;
-      ovs.sort().forEach(([k, v]) => { const [pid, iso] = k.split('|'); h += `<tr><td>${esc(label(person(pid)))}</td><td>${nice(iso)}</td><td>${esc(v)}</td><td><button type="button" class="small" data-rmov="${esc(k)}">Back to plan</button></td></tr>`; });
-      h += `</tbody></table></div><div class="actions" style="margin-top:12px"><button type="button" id="clearOv">Clear all single-day changes</button></div>`; }
-    return h + `</div></div>`;
-  }
-
-  /* ---------- render ---------- */
-  function render() {
-    closeMenu();
-    const t = tabNow();
-    R = C.compute(cfg);
-    $('tabs').innerHTML = TABS.map(([k, n]) => `<a href="#${k}"${k === t ? ' aria-current="page"' : ''}>${n}</a>`).join('');
-    renderStatus();
-    const active = document.activeElement && document.activeElement.id;
-    $('view').innerHTML = ({ roster: viewRoster, team: viewTeam, plan: viewPlan, rules: viewRules, leave: viewLeave })[t]();
-    if (active && $(active) && $('view').contains($(active))) $(active).focus();
-  }
-
-  /* ---------- events ---------- */
-  const setPath = (obj, path, v) => { const ks = path.split('.'); let o = obj; ks.slice(0, -1).forEach(k => o = o[k]); o[ks[ks.length - 1]] = v; };
-  $('view').addEventListener('change', e => {
-    const el = e.target, ds = el.dataset;
-    if (ds.k) {
-      let v = el.type === 'checkbox' ? el.checked : el.type === 'number' ? Math.max(+el.min || 0, Math.round(+el.value || 0)) : el.value;
-      if (ds.k === 'weeks') v = +v;
-      if (ds.k === 'start') { if (!v) return render(); const m = C.mondayOnOrAfter(v); const moved = m !== v; return commit(c => c.start = m, moved ? `Start moved to Monday ${C.fmtDate(m, true)}.` : 'Start date updated.'); }
-      if (ds.k.startsWith('shifts.')) { v = String(v).trim().replace(/[",]/g, ''); if (!v || ['RDO', 'Leave', 'Vacant'].includes(v)) return render(); const other = ds.k === 'shifts.early' ? cfg.shifts.late : cfg.shifts.early; if (v === other) { flash = { text: 'Early and late codes need to be different.', kind: 'bad' }; return render(); } }
-      if (ds.k === 'title') v = String(v).trim() || 'Team Roster';
-      return commit(c => setPath(c, ds.k, v));
-    }
-    if (ds.p) {
-      const f = ds.f; let v = el.value;
-      if (f === 'role') { v = v.trim(); if (!v || cfg.people.some(p => p.id !== ds.p && p.role.toLowerCase() === v.toLowerCase())) { flash = { text: v ? `There's already a role called ${v}. Roles must be unique.` : 'A role needs a name.', kind: 'bad' }; return render(); } }
-      if (f === 'name') v = v.trim();
-      return commit(c => { const p = c.people.find(x => x.id === ds.p); p[f] = v; if (f === 'pattern' && v !== 'alt') p.plan.forEach(q => q.shift = v); });
-    }
-    if (ds.plan) return commit(c => { const q = c.people.find(x => x.id === ds.plan).plan[+ds.fn]; q[ds.pf] = ds.pf === 'shift' ? el.value : +el.value; });
-    if (ds.rdoday) { const d = +ds.rdoday; return commit(c => { const s = new Set(c.rules.rdoDays); el.checked ? s.add(d) : s.delete(d); if (!s.size) s.add(d); c.rules.rdoDays = [...s].sort(); }); }
-    if (ds.leave) return commit(c => { const l = c.leave.find(x => x.id === ds.leave); l[ds.lf] = el.value; if (ds.lf === 'from' && (!l.to || l.to < l.from)) l.to = l.from; });
-    if (ds.swap) return commit(c => { const s = c.swaps.find(x => x.id === ds.swap); s[ds.sf] = el.value; if (ds.sf === 'pid') s.from = C.compute(c).rdoDates.get(el.value)[0]; });
-  });
-  $('view').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    const ds = b.dataset;
-    if (ds.cell) return openMenu(b);
-    if (ds.rm) { const p = person(ds.rm); return commit(c => { c.people = c.people.filter(x => x.id !== ds.rm); c.leave = c.leave.filter(l => l.pid !== ds.rm); c.swaps = c.swaps.filter(s => s.pid !== ds.rm); for (const k of Object.keys(c.overrides)) if (k.startsWith(ds.rm + '|')) delete c.overrides[k]; }, `Removed ${p.role}. Select Undo to bring it back.`); }
-    if (ds.up) return commit(c => { const p = c.people.find(x => x.id === ds.up); const same = c.people.filter(x => x.group === p.group); const k = same.indexOf(p); if (k < 1) return; const a = c.people.indexOf(same[k - 1]), b2 = c.people.indexOf(p); [c.people[a], c.people[b2]] = [c.people[b2], c.people[a]]; });
-    if (ds.add) return commit(c => {
-      const base = { analyst: 'Analyst', senior: 'Senior', leader: 'Team Leader' }[ds.add]; let n = c.people.filter(p => p.group === ds.add).length + 1, role = `${base} ${n}`;
-      while (c.people.some(p => p.role.toLowerCase() === role.toLowerCase())) role = `${base} ${++n}`;
-      c.people.push({ id: C.uid(), role, name: '', group: ds.add, pattern: ds.add === 'leader' ? 'early' : 'alt', plan: [] });
-    }, `Added ${ds.add === 'leader' ? 'a lead' : 'an ' + ds.add}. Type their name, then run Auto-plan on the Shifts & RDOs tab.`);
-    if (b.id === 'autoBtn') {
-      b.disabled = true; b.innerHTML = '<span class="spin" aria-hidden="true"></span>Planning...';
-      setTimeout(() => { const best = C.autoPlan(cfg, { tries: 60 }); const s = C.compute(best).summary;
-        commit(c => { c.people = best.people; c.swaps = best.swaps; }, s.short + s.conflict + s.rdoIssues === 0 ? 'Auto-plan done: cover and rotations all OK.' : `Auto-plan done. ${s.short} short day(s) and ${s.conflict} rotation conflict(s) remain; check the Roster tab.`); }, 30);
-      return;
-    }
-    if (b.id === 'addLeave') return commit(c => c.leave.push({ id: C.uid(), pid: C.rosterOrder(c)[0].id, from: c.start, to: c.start, note: '' }));
-    if (ds.rmleave) return commit(c => c.leave = c.leave.filter(l => l.id !== ds.rmleave));
-    if (b.id === 'addSwap') return commit(c => { const p = C.rosterOrder(c).find(x => x.group !== 'leader') || C.rosterOrder(c)[0]; const d = R.rdoDates.get(p.id)[0]; c.swaps.push({ id: C.uid(), pid: p.id, from: d, to: '', reason: '' }); });
-    if (ds.rmswap) return commit(c => c.swaps = c.swaps.filter(s => s.id !== ds.rmswap));
-    if (ds.rmov) return commit(c => delete c.overrides[ds.rmov]);
-    if (b.id === 'clearOv') return commit(c => c.overrides = {}, 'Single-day changes cleared.');
-  });
-
-  $('undoBtn').addEventListener('click', () => { const prev = history.pop(); if (!prev) return; cfg = C.normalise(JSON.parse(prev)); persist(); flash = { text: 'Undone.', kind: 'good' }; render(); });
-
-  $('saveBtn').addEventListener('click', async () => {
-    const b = $('saveBtn'); b.disabled = true;
-    try {
-      if (!window.ExcelJS) throw new Error('lib');
-      const wb = C.buildWorkbook(window.ExcelJS, cfg, C.compute(cfg));
-      const buf = await wb.xlsx.writeBuffer();
-      const name = `${cfg.title.replace(/[\\/:*?"<>|]+/g, '').trim() || 'Roster'} ${cfg.start}.xlsx`;
-      const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
-      flash = { text: `Saved ${name}.`, kind: 'good' };
-    } catch (e) { flash = { text: e.message === 'lib' ? "The Excel library didn't load. Check your connection and reload the page." : "The file couldn't be saved. Try again.", kind: 'bad' }; }
-    b.disabled = false; renderStatus();
-  });
-
-  $('openInput').addEventListener('change', async e => {
-    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-    try {
-      const c = await C.readWorkbook(window.ExcelJS, await f.arrayBuffer());
-      if (!c) { flash = { text: `${f.name} wasn't made by Roster Builder. Open a roster saved from this app.`, kind: 'bad' }; return renderStatus(); }
-      commit(x => Object.assign(x, c), `Opened ${f.name}, including any names, RDOs and swaps changed in Excel.`);
-    } catch (err) { flash = { text: `${f.name} couldn't be read. Check it's an .xlsx saved from this app.`, kind: 'bad' }; renderStatus(); }
-  });
-
-  render();
-})();
+<!-- ================= Requests (Pattern 10: Inbox) ================= -->
+<script type="text/x-template" id="tpl-requests">
+<div>
+  <div class="page-head">
+    <div>
+      <h1 tabindex="-1">Requests</h1>
+      <p class="lede">Leave and RDO swaps. Each pending request shows what approving it would do to cover.</p>
+    </div>
+    <div class="actions"><button type="button" class="btn btn-primary" @click="openRequest()"><i class="bi bi-plus-lg" aria-hidden="true"></i>New request</button></div>
+  </div>
+  <div class="toolbar">
+    <div class="seg" role="tablist" aria-label="Show requests">
+      <button v-for="[k, n] in [['pending', 'Pending'], ['approved', 'Approved'], ['declined', 'Declined'], ['all', 'All']]" :key="k" type="button" role="tab" :aria-selected="ui.reqTab === k ? 'true' : 'false'" @click="ui.reqTab = k">{{ n }} <span class="text-3 tnum">{{ counts[k] }}</span></button>
+    </div>
+  </div>
+  <section class="surface">
+    <div v-if="!list.length" class="empty">
+      <i class="bi bi-inbox" aria-hidden="true"></i>
+      <h3>{{ ui.reqTab === 'pending' ? 'No requests waiting' : 'No ' + (ui.reqTab === 'all' ? '' : ui.reqTab + ' ') + 'requests yet' }}</h3>
+      <p>Add leave or an RDO swap here to check its effect on cover before it goes on the roster.</p>
+      <button type="button" class="btn btn-primary" @click="openRequest()">Add a request</button>
+    </div>
+    <div v-for="q in page" :key="q.id" class="req" :class="{ pending: q.status === 'pending' }">
+      <span class="avatar" aria-hidden="true">{{ initials(nameOf(q.pid)) }}</span>
+      <div class="min-w-0">
+        <div class="title">{{ nameOf(q.pid) }} · {{ typeLabel(q.type) }} <span v-if="q.status !== 'pending'" class="badge-s ms-1" :class="q.status === 'approved' ? 'ok' : ''">{{ q.status === 'approved' ? 'Approved' : 'Declined' }}</span><span v-if="q.byFix" class="badge-s ms-1 accent">Cover fix</span></div>
+        <div class="when">{{ q.type === 'swap' ? 'RDO ' + nice(q.from) + ' moves to ' + nice(q.to) : range(q.from, q.to) + ' · ' + plural(days(q), 'weekday') }}<span v-if="q.note"> · {{ q.note }}</span></div>
+        <template v-if="q.status === 'pending'">
+          <div v-if="!inRoster(q)" class="imp text-3"><i class="bi bi-calendar-x" aria-hidden="true"></i>Outside the planned rosters. Plan the next roster to check cover.</div>
+          <div v-else-if="impactOf(q).invalid" class="imp bad"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>Can't apply: {{ impactOf(q).invalid.toLowerCase() }}.</div>
+          <div v-else-if="impactOf(q).safe && !impactOf(q).warn" class="imp ok"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>Safe to approve. Cover stays OK.</div>
+          <div v-else-if="impactOf(q).warn" class="imp warn"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>Cover stays OK. {{ impactOf(q).added[0].title }}: move that RDO after approving.</span></div>
+          <div v-else class="imp bad"><i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i><span>{{ impactOf(q).added[0].title }}. {{ impactOf(q).added[0].detail }}<span v-if="impactOf(q).added.length > 1"> Plus {{ plural(impactOf(q).added.length - 1, 'more problem') }}.</span></span></div>
+        </template>
+        <div v-if="overlaps(q).length" class="imp warn"><i class="bi bi-people" aria-hidden="true"></i><span>Overlaps with {{ overlaps(q).map(x => nameOf(x.pid) + (x.status === 'pending' ? ' (pending)' : '')).join(', ') }}. Each request is checked on its own.</span></div>
+        <div class="meta mt-1">Added {{ ago(q.createdAt || Date.now()) }}<span v-if="q.decidedAt"> · decided {{ ago(q.decidedAt) }}</span></div>
+      </div>
+      <div class="acts">
+        <template v-if="q.status === 'pending'">
+          <button v-if="canFix(q)" type="button" class="btn btn-primary" @click="act('approveAndFix', q)"><i class="bi bi-magic" aria-hidden="true"></i>Approve and fix cover</button>
+          <button type="button" :class="['btn', canFix(q) || (impactOf(q) && !impactOf(q).safe) ? 'btn-quiet' : 'btn-primary']" @click="act('decide', q, 'approved')">Approve</button>
+          <button type="button" class="btn btn-quiet" @click="act('decide', q, 'declined')">Decline</button>
+        </template>
+        <button v-else type="button" class="btn btn-quiet" @click="act('decide', q, 'pending')">Move to pending</button>
+        <button type="button" class="btn btn-quiet btn-icon" v-tip="'Delete request'" @click="act('deleteRequest', q)"><i class="bi bi-trash3" aria-hidden="true"></i></button>
+      </div>
+    </div>
+    <div class="pager">
+      <span class="tnum">{{ list.length ? (ui.reqPage * pageSize + 1) + ' to ' + Math.min(list.length, (ui.reqPage + 1) * pageSize) + ' of ' + list.length : '0 requests' }}</span>
+      <span class="d-flex gap-2">
+        <button type="button" class="btn btn-quiet" :disabled="ui.reqPage === 0" @click="ui.reqPage--"><i class="bi bi-chevron-left" aria-hidden="true"></i>Previous</button>
+        <button type="button" class="btn btn-quiet" :disabled="(ui.reqPage + 1) * pageSize >= list.length" @click="ui.reqPage++">Next<i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </span>
+    </div>
+  </section>
+</div>
 </script>
+
+<!-- ================= Team (Pattern 1: List) ================= -->
+<script type="text/x-template" id="tpl-team">
+<div>
+  <div class="page-head">
+    <div>
+      <h1 tabindex="-1">Team</h1>
+      <p class="lede">Who's on the {{ periodLabel(period) }} roster, with their totals. Changes carry into rosters you plan after this one.</p>
+    </div>
+    <div class="actions"><button type="button" class="btn btn-primary" @click="openPerson(null)"><i class="bi bi-person-plus" aria-hidden="true"></i>Add person</button></div>
+  </div>
+  <div class="toolbar">
+    <div class="search">
+      <label for="team-search" class="lbl-wide">Search team</label>
+      <div class="field"><i class="bi bi-search" aria-hidden="true"></i><input id="team-search" data-search type="search" class="form-control" v-model="ui.teamSearch" placeholder="Name or role" autocomplete="off" @input="ui.teamPage = 0"><kbd v-if="!ui.teamSearch" aria-hidden="true">/</kbd></div>
+    </div>
+    <div class="filters position-relative">
+      <button type="button" class="btn btn-quiet" :aria-expanded="ui.teamFiltersOpen ? 'true' : 'false'" aria-controls="team-filters" @click="ui.teamFiltersOpen = !ui.teamFiltersOpen"><i class="bi bi-funnel" aria-hidden="true"></i>Filters<span v-if="ui.teamGroups.length" class="count-badge">{{ ui.teamGroups.length }}</span></button>
+      <div v-if="ui.teamFiltersOpen" id="team-filters" class="pop" style="top: 48px; left: 0">
+        <div class="pop-sec">Group</div>
+        <label v-for="g in ['leader', 'senior', 'analyst']" :key="g" class="menu-item"><input type="checkbox" class="form-check-input m-0" :checked="ui.teamGroups.includes(g)" @change="toggleGroup(g)">{{ groupPlural(g) }}</label>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <button type="button" class="btn btn-quiet btn-icon" v-tip="'Download team list (CSV)'" @click="exportTeam"><i class="bi bi-download" aria-hidden="true"></i></button>
+  </div>
+  <div class="chips" v-if="ui.teamGroups.length">
+    <span v-for="g in ui.teamGroups" :key="g" class="chip">{{ groupPlural(g) }}<button type="button" v-tip="'Remove ' + groupPlural(g) + ' filter'" @click="toggleGroup(g)"><i class="bi bi-x" aria-hidden="true"></i></button></span>
+    <button type="button" class="btn btn-link-quiet" @click="ui.teamGroups = []">Clear all filters</button>
+  </div>
+  <section class="surface">
+    <div class="grid-wrap">
+      <table class="dtable">
+        <thead>
+          <tr>
+            <th scope="col" :aria-sort="ariaSort('name')"><button type="button" class="sortbtn" @click="sort('name')">Name <i class="bi" :class="sortIcon('name')" aria-hidden="true"></i></button></th>
+            <th scope="col" :aria-sort="ariaSort('order')"><button type="button" class="sortbtn" @click="sort('order')">Role and group <i class="bi" :class="sortIcon('order')" aria-hidden="true"></i></button></th>
+            <th scope="col">Shift pattern</th>
+            <th scope="col" class="num" :aria-sort="ariaSort('worked')"><button type="button" class="sortbtn" @click="sort('worked')">Days worked <i class="bi" :class="sortIcon('worked')" aria-hidden="true"></i></button></th>
+            <th scope="col" class="num" :aria-sort="ariaSort('leave')"><button type="button" class="sortbtn" @click="sort('leave')">Leave <i class="bi" :class="sortIcon('leave')" aria-hidden="true"></i></button></th>
+            <th scope="col" class="num" :aria-sort="ariaSort('fd')"><button type="button" class="sortbtn" @click="sort('fd')">{{ L.fd }} <i class="bi" :class="sortIcon('fd')" aria-hidden="true"></i></button></th>
+            <th scope="col" class="num" :aria-sort="ariaSort('seat')"><button type="button" class="sortbtn" @click="sort('seat')">{{ eff.rules.siteB.label }} days <i class="bi" :class="sortIcon('seat')" aria-hidden="true"></i></button></th>
+            <th scope="col" class="num" :aria-sort="ariaSort('ocWeeks')"><button type="button" class="sortbtn" @click="sort('ocWeeks')">{{ L.oc }} wks <i class="bi" :class="sortIcon('ocWeeks')" aria-hidden="true"></i></button></th>
+            <th scope="col"><span class="visually-hidden">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in page" :key="r.p.id" class="rowlink" @click="go('person-' + r.p.id)">
+            <td><a class="primary" :href="'#person-' + r.p.id" @click.stop :class="{ 'text-danger': v(r.p) === 'Vacant' }">{{ v(r.p) }}</a><span v-if="r.issues" class="badge-s bad ms-2">{{ plural(r.issues, 'problem') }}</span></td>
+            <td>{{ r.p.role }}<div class="meta">{{ groupName(r.p.group) }}</div></td>
+            <td class="text-2">{{ patternName(r.p.pattern) }}</td>
+            <td class="num mono">{{ r.t.worked }}</td>
+            <td class="num mono">{{ r.t.leave }}</td>
+            <td class="num mono" :class="{ 'text-3': r.p.group !== 'analyst' }">{{ r.p.group === 'analyst' ? r.t.fd : 'n/a' }}</td>
+            <td class="num mono" :class="{ 'text-3': r.p.group !== 'analyst' }">{{ r.p.group === 'analyst' ? r.t.seat : 'n/a' }}</td>
+            <td class="num mono" :class="{ 'text-3': r.p.group === 'leader' }">{{ r.p.group === 'leader' ? 'n/a' : r.t.ocWeeks }}</td>
+            <td class="chev"><i class="bi bi-chevron-right" aria-hidden="true"></i></td>
+          </tr>
+          <tr v-if="!rows.length && (ui.teamSearch || ui.teamGroups.length)"><td colspan="9" class="p-0"><div class="empty"><h3>No one matches</h3><p>Nobody fits that search or filter.</p><button type="button" class="btn btn-quiet" @click="ui.teamSearch = ''; ui.teamGroups = []">Clear all filters</button></div></td></tr>
+          <tr v-else-if="!rows.length"><td colspan="9" class="p-0"><div class="empty"><h3>No one on this roster yet</h3><p>Add the people you roster so cover and rotations can be planned.</p><button type="button" class="btn btn-primary" @click="openPerson(null)">Add person</button></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <span class="tnum">{{ rows.length ? (ui.teamPage * pageSize + 1) + ' to ' + Math.min(rows.length, (ui.teamPage + 1) * pageSize) + ' of ' + rows.length : '0 people' }}</span>
+      <span class="d-flex gap-2">
+        <button type="button" class="btn btn-quiet" :disabled="ui.teamPage === 0" @click="ui.teamPage--"><i class="bi bi-chevron-left" aria-hidden="true"></i>Previous</button>
+        <button type="button" class="btn btn-quiet" :disabled="(ui.teamPage + 1) * pageSize >= rows.length" @click="ui.teamPage++">Next<i class="bi bi-chevron-right" aria-hidden="true"></i></button>
+      </span>
+    </div>
+  </section>
+  <p class="meta mt-3" v-if="data.sample">Sample team with made-up names. Edit or replace them; nothing leaves this browser.</p>
+</div>
+</script>
+
+<!-- ================= Person (Pattern 2: Detail) ================= -->
+<script type="text/x-template" id="tpl-person">
+<div>
+  <div v-if="!p" class="surface empty">
+    <h1 tabindex="-1" class="h3">Person not on this roster</h1>
+    <p>They may have been removed, or belong to another roster period.</p>
+    <a class="btn btn-primary" href="#team">Go to team</a>
+  </div>
+  <template v-else>
+    <div class="crumbs"><a href="#team">Team</a> › {{ v(p) }}</div>
+    <div class="page-head">
+      <div>
+        <h1 tabindex="-1">{{ v(p) }}</h1>
+        <div class="metaline"><span>{{ p.role }}</span><span>{{ groupName(p.group) }}</span><span>{{ patternName(p.pattern) }}</span><span v-if="v(p) === 'Vacant'" class="badge-s bad">Vacant</span><span class="tnum">{{ periodLabel(period) }}</span></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn btn-quiet" @click="act('exportIcs', p.id)"><i class="bi bi-calendar-event" aria-hidden="true"></i>Download calendar</button>
+        <button type="button" class="btn btn-quiet" @click="openRequest({ pid: p.id })"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add request</button>
+        <button type="button" class="btn btn-primary" @click="openPerson(p)"><i class="bi bi-pencil" aria-hidden="true"></i>Edit details</button>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Sections">
+      <button v-for="[k, n] in [['shifts', 'Shifts'], ['requests', 'Requests (' + reqs.length + ')'], ['totals', 'Totals']]" :key="k" type="button" role="tab" :aria-selected="ui.personTab === k ? 'true' : 'false'" @click="ui.personTab = k">{{ n }}</button>
+    </div>
+    <section v-if="ui.personTab === 'shifts'" class="surface">
+      <div class="grid-wrap">
+        <table class="dtable">
+          <thead><tr><th scope="col">Day</th><th scope="col">Shift</th><th scope="col">Duties</th><th scope="col">Notes</th></tr></thead>
+          <tbody>
+            <template v-for="row in rows" :key="row.d.iso">
+              <tr v-if="row.d.dow === 1" class="weekrow"><td colspan="4">Week {{ row.d.w + 1 }} · pay period {{ row.d.f + 1 }}</td></tr>
+              <tr>
+              <td class="tnum"><span class="fw-semibold">{{ E.DAYS[row.d.dow - 1] }}</span> {{ fmt(row.d.iso) }}</td>
+              <td><span class="badge-s mono" :style="{ background: 'var(--' + cellClass(row.v).slice(2) + ')' }">{{ row.v }}</span></td>
+              <td class="text-2">{{ row.duties.join(', ') }}</td>
+              <td class="text-2">{{ row.notes.join('. ') }}</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section v-if="ui.personTab === 'requests'" class="surface">
+      <div v-if="!reqs.length" class="empty"><h3>No requests for {{ v(p) }}</h3><p>Leave and RDO swaps for {{ v(p) }} will show here.</p><button type="button" class="btn btn-primary" @click="openRequest({ pid: p.id })">Add a request</button></div>
+      <div v-for="q in reqs" :key="q.id" class="feed-item">
+        <div><b>{{ typeLabel(q.type) }}</b> · {{ q.type === 'swap' ? nice(q.from) + ' to ' + nice(q.to) : range(q.from, q.to) }}<span v-if="q.note" class="text-2"> · {{ q.note }}</span></div>
+        <span class="badge-s" :class="q.status === 'approved' ? 'ok' : q.status === 'pending' ? 'warn' : ''">{{ q.status === 'approved' ? 'Approved' : q.status === 'pending' ? 'Pending' : 'Declined' }}</span>
+      </div>
+    </section>
+    <section v-if="ui.personTab === 'totals'" class="surface">
+      <div class="kv">
+        <div><div class="k">Days worked</div><div class="v tnum">{{ t.worked }}</div><div class="s">{{ groupPlural(p.group) }} average {{ avg.worked.toFixed(1) }}</div></div>
+        <div><div class="k">On {{ eff.shifts.early }}</div><div class="v tnum">{{ t.early }}</div><div class="s">On {{ eff.shifts.late }}: {{ t.late }}</div></div>
+        <div><div class="k">RDOs</div><div class="v tnum">{{ t.rdo }}</div><div class="s">1 per pay period expected</div></div>
+        <div><div class="k">Leave days</div><div class="v tnum">{{ t.leave }}</div><div class="s">Approved only</div></div>
+        <div v-if="p.group === 'analyst'"><div class="k">{{ L.fd }}</div><div class="v tnum">{{ t.fd }}</div><div class="s">Analyst average {{ avg.fd.toFixed(1) }}</div></div>
+        <div v-if="p.group === 'analyst'"><div class="k">{{ eff.rules.siteB.label }} days</div><div class="v tnum">{{ t.seat }}</div><div class="s">Analyst average {{ avg.seat.toFixed(1) }}</div></div>
+        <div v-if="p.group !== 'leader'"><div class="k">{{ L.oc }} weeks</div><div class="v tnum">{{ t.ocWeeks }}</div><div class="s">Group average {{ avg.ocWeeks.toFixed(1) }}</div></div>
+        <div><div class="k">Single-day changes</div><div class="v tnum">{{ t.changed }}</div><div class="s">Made on the roster grid</div></div>
+      </div>
+    </section>
+    <div class="danger-zone">
+      <h3>Remove from roster</h3>
+      <div class="danger-row"><span class="text-2 small-2">{{ v(p) }} comes off this roster and any you plan after it. Earlier rosters keep them.</span><button type="button" class="btn btn-danger-quiet" @click="act('removePerson', p)">Remove {{ v(p) }}</button></div>
+    </div>
+  </template>
+</div>
+</script>
+
+<!-- ================= Review (Pattern 2: Detail of the roster period) ================= -->
+<script type="text/x-template" id="tpl-review">
+<div>
+  <div class="crumbs"><a href="#roster">Roster</a> › Review</div>
+  <div class="page-head">
+    <div>
+      <h1 tabindex="-1">{{ period.title }}: {{ periodLabel(period) }}</h1>
+      <div class="metaline">
+        <span class="badge-s" :class="period.status === 'final' ? 'ok' : ''">{{ period.status === 'final' ? 'Final' : 'Draft' }}</span>
+        <span v-if="ready" class="badge-s ok"><i class="bi bi-check2" aria-hidden="true"></i>Ready to share</span>
+        <span v-else class="badge-s bad">Needs attention</span>
+        <span>{{ plural(R.ro.length, 'person', 'people') }}</span><span>{{ plural(period.weeks / 2, 'pay period') }}</span><span>Last change {{ lastChange }}</span>
+      </div>
+    </div>
+    <div class="actions">
+      <button v-if="period.status === 'final'" type="button" class="btn btn-quiet" @click="act('reopen')">Reopen as draft</button>
+      <button v-else type="button" class="btn btn-primary" @click="act('finalise')"><i class="bi bi-check2-circle" aria-hidden="true"></i>Mark as final</button>
+    </div>
+  </div>
+  <div class="tabs" role="tablist" aria-label="Sections">
+    <button v-for="[k, n] in [['checks', 'Checks'], ['pay', 'Pay periods'], ['fair', 'Fairness'], ['changes', 'Changes'], ['export', 'Export']]" :key="k" type="button" role="tab" :aria-selected="ui.reviewTab === k ? 'true' : 'false'" @click="ui.reviewTab = k">{{ n }}</button>
+  </div>
+
+  <section v-if="ui.reviewTab === 'checks'" class="surface">
+    <div v-for="c in checks" :key="c.t" class="check-row">
+      <i class="bi" :class="c.ok ? 'bi-check-circle-fill' : c.warn ? 'bi-dash-circle' : 'bi-exclamation-circle-fill'" aria-hidden="true"></i>
+      <div><div class="t">{{ c.t }}</div><div class="d">{{ c.d }}</div></div>
+      <a v-if="!c.ok" class="btn btn-quiet" :href="'#' + c.go">{{ c.go === 'requests' ? 'Open requests' : c.go === 'team' ? 'Open team' : 'Open roster' }}</a>
+    </div>
+  </section>
+
+  <section v-if="ui.reviewTab === 'pay'" class="stack d-grid gap-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between"><p class="text-2 mb-0 prose">What payroll needs for each pay period. Leave counts approved requests only.</p><button type="button" class="btn btn-quiet" @click="act('exportPayroll')"><i class="bi bi-download" aria-hidden="true"></i>Download payroll CSV</button></div>
+    <div v-for="pp in payroll" :key="pp.f" class="surface">
+      <div class="issues-head"><div class="title">Pay period {{ pp.f + 1 }} <span class="text-3 fw-normal tnum">{{ nice(pp.from) }} to {{ nice(pp.to) }}</span></div></div>
+      <div class="grid-wrap">
+        <table class="dtable">
+          <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col" class="num">Days worked</th><th scope="col" class="num">RDO</th><th scope="col" class="num">Leave days</th><th scope="col" class="num">Single-day changes</th></tr></thead>
+          <tbody><tr v-for="r in pp.rows" :key="r.p.id"><td><a class="primary" :href="'#person-' + r.p.id">{{ v(r.p) }}</a></td><td class="text-2">{{ r.p.role }}</td><td class="num mono">{{ r.worked }}</td><td class="num mono" :class="{ 'text-danger fw-semibold': r.rdo !== 1 }">{{ r.rdo }}</td><td class="num mono">{{ r.leave }}</td><td class="num mono">{{ r.changed }}</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section v-if="ui.reviewTab === 'fair'" class="d-grid gap-3">
+    <p class="text-2 mb-0 prose">How duties are spread within each group this roster. Highlighted numbers are well above or below the group average.</p>
+    <div v-for="g in fairness" :key="g.g" class="surface">
+      <div class="issues-head"><div class="title">{{ groupPlural(g.g) }}</div></div>
+      <div class="grid-wrap">
+        <table class="dtable">
+          <thead><tr><th scope="col">Name</th><th scope="col" class="num">On {{ eff.shifts.early }}</th><th scope="col" class="num">On {{ eff.shifts.late }}</th><th scope="col" class="num" v-if="g.g === 'analyst'">{{ L.fd }}</th><th scope="col" class="num" v-if="g.g === 'analyst'">{{ eff.rules.siteB.label }} days</th><th scope="col" class="num" v-if="g.g !== 'leader'">{{ L.oc }} weeks</th></tr></thead>
+          <tbody>
+            <tr v-for="r in g.rows" :key="r.p.id"><td><a class="primary" :href="'#person-' + r.p.id">{{ v(r.p) }}</a></td><td class="num mono" :class="{ 'fair-hi': r.hi.early }">{{ r.t.early }}</td><td class="num mono">{{ r.t.late }}</td><td class="num mono" v-if="g.g === 'analyst'" :class="{ 'fair-hi': r.hi.fd }">{{ r.t.fd }}</td><td class="num mono" v-if="g.g === 'analyst'" :class="{ 'fair-hi': r.hi.seat }">{{ r.t.seat }}</td><td class="num mono" v-if="g.g !== 'leader'" :class="{ 'fair-hi': r.hi.oc }">{{ r.t.ocWeeks }}</td></tr>
+            <tr class="text-3"><td>Average</td><td class="num mono">{{ g.m.early.toFixed(1) }}</td><td class="num mono"></td><td class="num mono" v-if="g.g === 'analyst'">{{ g.m.fd.toFixed(1) }}</td><td class="num mono" v-if="g.g === 'analyst'">{{ g.m.seat.toFixed(1) }}</td><td class="num mono" v-if="g.g !== 'leader'">{{ g.m.ocWeeks.toFixed(1) }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section v-if="ui.reviewTab === 'changes'" class="surface">
+    <div v-if="!feed.length" class="empty"><h3>No changes yet</h3><p>Every change to this roster is listed here, so you know what to tell the team.</p><a class="btn btn-primary" href="#roster">Open roster</a></div>
+    <div v-for="(e, k) in feed" :key="k" class="feed-item"><span>{{ e.text }}<span v-if="e.afterFinal" class="badge-s warn ms-2">After final</span></span><span class="time">{{ ago(e.at) }}</span></div>
+    <div v-if="period.log.length > feed.length" class="p-2"><button type="button" class="btn btn-link-quiet" @click="ui.feedMore++">Load more</button></div>
+  </section>
+
+  <section v-if="ui.reviewTab === 'export'" class="surface">
+    <div class="export-row"><i class="bi bi-clipboard" aria-hidden="true"></i><div><b>Copy roster table</b><div class="d">A coloured table to paste into an email or Teams message.</div></div><button type="button" class="btn btn-quiet" @click="act('copyTable')">Copy table</button></div>
+    <div class="export-row"><i class="bi bi-filetype-csv" aria-hidden="true"></i><div><b>Payroll summary</b><div class="d">Days worked, RDOs, leave by type and single-day changes, per person per pay period.</div></div><button type="button" class="btn btn-quiet" @click="act('exportPayroll')">Download CSV</button></div>
+    <div class="export-row"><i class="bi bi-calendar-event" aria-hidden="true"></i><div><b>Staff calendars</b><div class="d">Each person can add their shifts to Outlook or their phone. Open a person from the Team page and choose Download calendar.</div></div><a class="btn btn-quiet" href="#team">Open team</a></div>
+    <div class="export-row"><i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i><div><b>Excel workbook</b><div class="d">The full roster with live formulas, dropdowns and the same cover checks, for anyone who works in Excel. It reopens in this app.</div></div><button type="button" class="btn btn-quiet" @click="act('exportXlsx')" :aria-busy="ui.busy === 'xlsx' ? 'true' : 'false'"><span v-if="ui.busy === 'xlsx'" class="spinner-border spinner-border-sm" aria-hidden="true"></span>Download workbook</button></div>
+  </section>
+</div>
+</script>
+
+<!-- ================= Settings (Pattern 5) ================= -->
+<script type="text/x-template" id="tpl-settings">
+<div>
+  <div class="page-head"><div><h1 tabindex="-1">Settings</h1><p class="lede">How the {{ periodLabel(period) }} roster works. Rosters you plan next copy these.</p></div></div>
+  <div class="settings" v-if="f">
+    <nav aria-label="Settings sections"><button v-for="[k, n] in sections" :key="k" type="button" :aria-current="ui.settings === k ? 'true' : 'false'" @click="goSection(k)">{{ n }}</button></nav>
+    <div class="navsel mb-2"><label class="form-label" for="set-nav">Section</label><select id="set-nav" class="form-select" v-model="ui.settings"><option v-for="[k, n] in sections" :key="k" :value="k">{{ n }}</option></select></div>
+    <section class="surface section" aria-labelledby="sec-h">
+      <template v-if="ui.settings === 'period'">
+        <h2 id="sec-period" tabindex="-1">Roster period</h2><p class="text-2 prose">The name, first Monday and length of this roster. Pay periods are 2 weeks each.</p>
+        <div class="fields">
+          <div><label class="form-label" for="set-title">Roster name</label><input id="set-title" class="form-control" v-model="f.title" :class="{ 'is-invalid': err('title') }" @blur="blur('title')" @focus="focusField('title')" maxlength="60"><div class="invalid-msg" v-if="err('title')">{{ errors.title }}</div></div>
+          <div><label class="form-label" for="set-start">First Monday</label><input id="set-start" type="date" class="form-control" v-model="f.start" :class="{ 'is-invalid': err('start') }" @blur="blur('start')" @focus="focusField('start')"><div class="invalid-msg" v-if="err('start')">{{ errors.start }}</div><div class="form-text" v-else-if="startMoved">That's not a Monday, so the roster will start on {{ nice(startMoved) }}.</div></div>
+          <div><label class="form-label" for="set-weeks">Length</label><select id="set-weeks" class="form-select" v-model.number="f.weeks"><option v-for="w in [2, 4, 6, 8]" :key="w" :value="w">{{ w }} weeks ({{ plural(w / 2, 'pay period') }})</option></select></div>
+        </div>
+        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('period', ['title', 'start'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'period'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
+      </template>
+      <template v-if="ui.settings === 'shifts'">
+        <h2 id="sec-shifts" tabindex="-1">Shifts</h2><p class="text-2 prose">The two shift codes as they appear on the roster. Codes like 7-4 also set the times in staff calendars.</p>
+        <div class="fields two">
+          <div><label class="form-label" for="set-early">Early shift</label><input id="set-early" class="form-control mono" v-model="f.early" :class="{ 'is-invalid': err('early') }" @blur="blur('early')" @focus="focusField('early')" maxlength="12"><div class="invalid-msg" v-if="err('early')">{{ errors.early }}</div></div>
+          <div><label class="form-label" for="set-late">Late shift</label><input id="set-late" class="form-control mono" v-model="f.late" :class="{ 'is-invalid': err('late') }" @blur="blur('late')" @focus="focusField('late')" maxlength="12"><div class="invalid-msg" v-if="err('late')">{{ errors.late }}</div></div>
+        </div>
+        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('shifts', ['early', 'late'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'shifts'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
+      </template>
+      <template v-if="ui.settings === 'cover'">
+        <h2 id="sec-cover" tabindex="-1">Daily cover</h2><p class="text-2 prose">The fewest people needed each weekday. A day below any of these shows as short.</p>
+        <div class="fields two">
+          <div><label class="form-label" for="set-minEarly">On {{ eff.shifts.early }}</label><input id="set-minEarly" type="number" inputmode="numeric" min="0" max="50" class="form-control" v-model="f.minEarly" :class="{ 'is-invalid': err('minEarly') }" @blur="blur('minEarly')" @focus="focusField('minEarly')"><div class="invalid-msg" v-if="err('minEarly')">{{ errors.minEarly }}</div></div>
+          <div><label class="form-label" for="set-minLate">On {{ eff.shifts.late }}</label><input id="set-minLate" type="number" inputmode="numeric" min="0" max="50" class="form-control" v-model="f.minLate" :class="{ 'is-invalid': err('minLate') }" @blur="blur('minLate')" @focus="focusField('minLate')"><div class="invalid-msg" v-if="err('minLate')">{{ errors.minLate }}</div></div>
+          <div><label class="form-label" for="set-minSenior">{{ E.seniorLabel(eff).replace(' on duty', '') }} on duty</label><input id="set-minSenior" type="number" inputmode="numeric" min="0" max="50" class="form-control" v-model="f.minSenior" :class="{ 'is-invalid': err('minSenior') }" @blur="blur('minSenior')" @focus="focusField('minSenior')"><div class="invalid-msg" v-if="err('minSenior')">{{ errors.minSenior }}</div><div class="form-text">Counts the senior group on either shift.</div></div>
+        </div>
+        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('cover', ['minEarly', 'minLate', 'minSenior'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'cover'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
+      </template>
+      <template v-if="ui.settings === 'rotations'">
+        <h2 id="sec-rotations" tabindex="-1">Rotations</h2><p class="text-2 prose">Duties that rotate through the team. Switches save straight away; the details below save together. Analyst numbers follow the order on the Team page.</p>
+        <div class="set-group">
+          <div class="form-check form-switch"><input id="set-fd-on" class="form-check-input" type="checkbox" role="switch" :checked="eff.rules.frontDesk.on" @change="toggleRot('frontDesk', $event.target.checked)"><label class="form-check-label fw-semibold" for="set-fd-on">{{ eff.rules.frontDesk.label }}, daily</label></div>
+          <p class="form-text mb-3">One analyst a day in turn. If they're off or at the second site, the next free analyst covers.</p>
+          <div class="fields two" v-if="eff.rules.frontDesk.on">
+            <div><label class="form-label" for="set-fdLabel">Name</label><input id="set-fdLabel" class="form-control" v-model="f.fdLabel" maxlength="30"></div>
+            <div><label class="form-label" for="set-fdStart">Analyst number on day 1</label><input id="set-fdStart" type="number" min="1" class="form-control" v-model="f.fdStart" :class="{ 'is-invalid': err('fdStart') }" @blur="blur('fdStart')" @focus="focusField('fdStart')"><div class="invalid-msg" v-if="err('fdStart')">{{ errors.fdStart }}</div></div>
+          </div>
+        </div>
+        <div class="set-group">
+          <div class="form-check form-switch"><input id="set-sb-on" class="form-check-input" type="checkbox" role="switch" :checked="eff.rules.siteB.on" @change="toggleRot('siteB', $event.target.checked)"><label class="form-check-label fw-semibold" for="set-sb-on">{{ eff.rules.siteB.label }}, 2 seats weekly</label></div>
+          <p class="form-text mb-3">Seat 1 runs Monday to Friday. Seat 2 runs Wednesday to Tuesday so the handover is staggered.</p>
+          <div class="fields two" v-if="eff.rules.siteB.on">
+            <div><label class="form-label" for="set-sbLabel">Site name</label><input id="set-sbLabel" class="form-control" v-model="f.sbLabel" maxlength="30"></div>
+            <div><label class="form-label" for="set-sbMin">Minimum working there</label><input id="set-sbMin" type="number" min="0" max="2" class="form-control" v-model="f.sbMin" :class="{ 'is-invalid': err('sbMin') }" @blur="blur('sbMin')" @focus="focusField('sbMin')"><div class="invalid-msg" v-if="err('sbMin')">{{ errors.sbMin }}</div></div>
+            <div><label class="form-label" for="set-seat1">Seat 1: analyst number in week 1</label><input id="set-seat1" type="number" min="1" class="form-control" v-model="f.seat1" :class="{ 'is-invalid': err('seat1') }" @blur="blur('seat1')" @focus="focusField('seat1')"><div class="invalid-msg" v-if="err('seat1')">{{ errors.seat1 }}</div></div>
+            <div><label class="form-label" for="set-seat2">Seat 2: analyst number from Wednesday</label><input id="set-seat2" type="number" min="1" class="form-control" v-model="f.seat2" :class="{ 'is-invalid': err('seat2') }" @blur="blur('seat2')" @focus="focusField('seat2')"><div class="invalid-msg" v-if="err('seat2')">{{ errors.seat2 }}</div></div>
+          </div>
+        </div>
+        <div class="set-group">
+          <div class="form-check form-switch"><input id="set-oc-on" class="form-check-input" type="checkbox" role="switch" :checked="eff.rules.onCall.on" @change="toggleRot('onCall', $event.target.checked)"><label class="form-check-label fw-semibold" for="set-oc-on">{{ eff.rules.onCall.label }}, weekly</label></div>
+          <p class="form-text mb-3">Runs through the first people in the pool: seniors first, then analysts. Leads are never on call.</p>
+          <div class="fields two" v-if="eff.rules.onCall.on">
+            <div><label class="form-label" for="set-ocLabel">Name</label><input id="set-ocLabel" class="form-control" v-model="f.ocLabel" maxlength="30"></div>
+            <div><label class="form-label" for="set-ocPool">People in the pool</label><input id="set-ocPool" type="number" min="1" class="form-control" v-model="f.ocPool" :class="{ 'is-invalid': err('ocPool') }" @blur="blur('ocPool')" @focus="focusField('ocPool')"><div class="invalid-msg" v-if="err('ocPool')">{{ errors.ocPool }}</div><div class="form-text">{{ R.so.filter(p => p.group === 'senior').length }} covers the seniors only.</div></div>
+            <div><label class="form-label" for="set-ocStart">Pool position in week 1</label><input id="set-ocStart" type="number" min="1" class="form-control" v-model="f.ocStart" :class="{ 'is-invalid': err('ocStart') }" @blur="blur('ocStart')" @focus="focusField('ocStart')"><div class="invalid-msg" v-if="err('ocStart')">{{ errors.ocStart }}</div></div>
+          </div>
+        </div>
+        <div class="save-row"><button type="button" class="btn btn-primary" @click="save('rotations', ['fdStart', 'sbMin', 'seat1', 'seat2', 'ocPool', 'ocStart'])">Save changes</button><button v-if="dirty" type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved === 'rotations'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
+      </template>
+      <template v-if="ui.settings === 'rdo'">
+        <h2 id="sec-rdo" tabindex="-1">RDO days</h2><p class="text-2 prose">Each person gets 1 RDO each pay period. Planning only places them on the days ticked here.</p>
+        <fieldset><legend class="form-label">Days RDOs can fall on</legend>
+          <div class="days-row"><div v-for="(d, k) in E.DAYS" :key="d" class="form-check"><input :id="'set-rdo-' + k" class="form-check-input" type="checkbox" :value="k + 1" v-model="f.rdoDays" @change="touched.rdoDays = true"><label class="form-check-label" :for="'set-rdo-' + k">{{ d }}</label></div></div>
+          <div class="invalid-msg" v-if="touched.rdoDays && errors.rdoDays">{{ errors.rdoDays }}</div>
+        </fieldset>
+        <div class="save-row"><button type="button" class="btn btn-primary" id="set-rdoDays" @click="save('rdo', ['rdoDays'])">Save changes</button><span v-if="saved === 'rdo'" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
+        <div class="set-group">
+          <h3>Plan again</h3>
+          <p class="text-2 small-2 prose">Re-plans everyone's shifts and standard RDOs for this roster to keep cover up and avoid rotation clashes. Approved requests and single-day changes stay.</p>
+          <button type="button" class="btn btn-quiet" @click="act('replan')" :aria-busy="ui.busy === 'replan' ? 'true' : 'false'"><span v-if="ui.busy === 'replan'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-magic" aria-hidden="true"></i>Re-plan shifts and RDOs</button>
+        </div>
+      </template>
+      <template v-if="ui.settings === 'data'">
+        <h2 id="sec-data" tabindex="-1">Data</h2><p class="text-2 prose">Everything is kept in this browser on this device. Download a backup to move it or keep it safe.</p>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-quiet" @click="act('backup')"><i class="bi bi-download" aria-hidden="true"></i>Download backup</button>
+          <label class="btn btn-quiet position-relative"><i class="bi bi-upload" aria-hidden="true"></i>Open a backup or workbook<input type="file" accept=".json,.xlsx" class="position-absolute opacity-0" style="inset:0;width:100%;cursor:pointer" @change="pickFile"></label>
+        </div>
+        <p class="form-text">Workbooks saved from this app reopen with any names, RDOs and swaps changed in Excel.</p>
+        <div class="danger-zone">
+          <h3>Danger zone</h3>
+          <div class="danger-row" v-if="periods.length > 1"><span class="text-2 small-2">Delete the {{ periodLabel(period) }} roster. Other rosters stay.</span><button type="button" class="btn btn-danger-quiet" @click="act('deletePeriod')">Delete this roster</button></div>
+          <div class="danger-row"><span class="text-2 small-2">Delete every roster and request on this device and start again from the sample team.</span><button type="button" class="btn btn-danger-quiet" @click="act('reset')">Delete everything</button></div>
+        </div>
+      </template>
+    </section>
+  </div>
+</div>
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.4.38/vue.global.prod.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js" defer></script>
+<script src="js/engine.js"></script>
+<script src="js/planner.js"></script>
+<script src="js/exports.js"></script>
+<script src="js/app.js"></script>
+<style>[v-cloak] { display: none; }</style>
 </body>
 </html>
