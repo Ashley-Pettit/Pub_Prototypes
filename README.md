@@ -1,5 +1,8 @@
-# Pub_Prototypes
-Data removed
+# Rapid AI prototypes for manager review
+
+Live hub: https://ashley-pettit.github.io/Pub_Prototypes/
+
+Early concepts built quickly with AI. Not endorsed tools. Synthetic data only.
 
 ## Prototypes
 

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rapid AI prototypes for manager review</title>
+<meta name="description" content="Early concepts built quickly with AI, so managers can see an idea working before anyone commits to it. Not endorsed tools; synthetic data only.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#2552a3">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Rapid AI prototypes for manager review">
+<meta property="og:title" content="Rapid AI prototypes for manager review">
+<meta property="og:description" content="Early concepts built quickly with AI, so managers can see an idea working before anyone commits to it. Not endorsed tools. Synthetic data only.">
+<meta property="og:url" content="https://ashley-pettit.github.io/Pub_Prototypes/">
+<meta property="og:image" content="https://ashley-pettit.github.io/Pub_Prototypes/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Rapid AI prototypes for manager review">
+<meta property="og:locale" content="en_AU">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Rapid AI prototypes for manager review">
+<meta name="twitter:image" content="https://ashley-pettit.github.io/Pub_Prototypes/og.png">
+<link rel="apple-touch-icon" href="roster-builder/apple-touch-icon.png">
+<link rel="icon" href="roster-builder/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Hub page: one column of prototype cards on a light canvas, same tokens as the prototypes. */
+:root
+{
+  --canvas: #f3f5f8; --surface: #ffffff; --border: rgba(20, 28, 43, 0.11); --ink: #141c2b; --ink-2: #3f4a5c; --ink-3: #5d6879;
+  --accent: #2552a3; --banner-bg: #fff3cd; --banner-ink: #5c4300; --banner-line: #ecd48a; --ok: #17734a; --ok-soft: #e6f4ec;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark)
+{
+  :root
+  {
+    --canvas: #0f141b; --surface: #171e28; --border: rgba(226, 232, 240, 0.12); --ink: #e7ecf2; --ink-2: #bcc6d3; --ink-3: #9aa6b6;
+    --accent: #7ea6ef; --banner-bg: #3a2f10; --banner-ink: #ffe3a1; --banner-line: #6b5720; --ok: #6fd3a0; --ok-soft: #16301f;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font: 16px/1.5 "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.banner { background: var(--banner-bg); color: var(--banner-ink); border-bottom: 1px solid var(--banner-line); font-size: 0.875rem; padding: 8px max(16px, env(safe-area-inset-left, 0px)); padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+.banner b { font-weight: 600; }
+main { max-width: 880px; margin: 0 auto; padding: 48px max(16px, env(safe-area-inset-right, 0px)) 64px max(16px, env(safe-area-inset-left, 0px)); }
+.tag { display: inline-flex; align-items: center; gap: 8px; background: var(--banner-bg); border: 1px solid var(--banner-line); color: var(--banner-ink); font-weight: 600; font-size: 0.875rem; padding: 4px 12px; border-radius: 20px; }
+.tag::before { content: ""; width: 8px; height: 8px; border-radius: 4px; background: currentColor; }
+h1 { font: 600 clamp(2.25rem, 6vw, 3.25rem)/1.05 "Barlow Semi Condensed", "Arial Narrow", sans-serif; margin: 16px 0 8px; text-wrap: balance; }
+.lede { color: var(--ink-2); max-width: 60ch; margin: 0 0 32px; font-size: 1.125rem; }
+.card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-decoration: none; color: var(--ink); box-shadow: 0 2px 12px rgba(16, 24, 40, 0.06); transition: border-color 150ms ease-out; }
+.card:hover { border-color: var(--accent); }
+.card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card h2 { font: 600 1.75rem/1.1 "Barlow Semi Condensed", sans-serif; margin: 0 0 4px; }
+.card p { margin: 0; color: var(--ink-2); max-width: 60ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; font-size: 0.875rem; color: var(--ink-3); }
+.ok { color: var(--ok); background: var(--ok-soft); border-radius: 6px; padding: 0 8px; font-weight: 600; }
+.go { display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; font-size: 0.875rem; white-space: nowrap; }
+@media (prefers-color-scheme: dark) { .go { color: #0c1626; } }
+.thumb { grid-column: 1 / -1; width: 100%; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.note { margin-top: 32px; color: var(--ink-3); font-size: 0.875rem; max-width: 70ch; }
+@media (max-width: 600px) { .card { grid-template-columns: minmax(0, 1fr); } .go { justify-content: center; } main { padding-top: 32px; } }
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+</style>
+</head>
+<body>
+<div class="banner" role="note"><b>Rapid prototypes, not endorsed tools.</b> Do not enter council data. For management review as concepts only.</div>
+<main>
+  <span class="tag">Rapid AI prototypes for manager review</span>
+  <h1>AI prototypes</h1>
+  <p class="lede">Early concepts built quickly with AI, so managers can see an idea working before anyone commits to it. Each one uses made-up data.</p>
+
+  <a class="card" href="roster-builder/">
+    <img class="thumb" src="roster-builder/og.png" width="1200" height="630" alt="Roster Builder preview: a colour-coded team roster with shifts, RDOs and leave.">
+    <div>
+      <h2>Roster Builder</h2>
+      <p>Plan a fortnightly team roster with RDOs, rotations and cover checks, then hand it over as the master Excel file.</p>
+      <div class="meta"><span>v4.3</span><span>Works on phone and desktop</span><span class="ok">Ready for review</span></div>
+    </div>
+    <span class="go">Open Roster Builder</span>
+  </a>
+
+  <p class="note">These prototypes run in your browser. Nothing you type is sent anywhere. They are shared for feedback only and are not supported council systems.</p>
+</main>
+</body>
+</html>
