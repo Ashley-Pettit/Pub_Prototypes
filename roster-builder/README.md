@@ -25,11 +25,11 @@ The same layout as the original team roster spreadsheet: Roster, Setup and RDO s
 | Step | What it's for |
 |---|---|
 | 1 Team | Names, roles, groups and shift patterns, edited in place (cards on a phone). |
-| 2 Check roster | The grid with cover and rotation rows, a short list of anything to check, single-day changes (a bottom sheet on a phone), and Re-plan RDOs. |
+| 2 Check roster | The grid with cover and rotation rows, a short list of anything to check, single-day changes (a bottom sheet on a phone), on a phone). |
 | 3 Leave and RDOs | Approved leave and RDO moves, with the same checks the workbook uses. |
 | 4 Excel | Download the master copy, see whether it's up to date, and open an existing file. |
 
-Settings (gear icon) holds the roster name, start, length, shift codes, cover minimums, rotations and RDO days. On a phone the steps sit in a bottom tab bar, and every page ends with a Next button. An Excel status chip in the header shows on every page.
+Settings (gear icon) holds Re-plan RDOs, a collapsed how-it-works guide, and the roster name, start, length, shift codes, cover minimums, rotations and RDO days. On a phone the steps sit in a bottom tab bar, and every page ends with a Next button. An Excel status chip in the header shows on every page.
 
 ## How it's built
 

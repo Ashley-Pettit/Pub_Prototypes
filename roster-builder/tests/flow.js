@@ -54,8 +54,8 @@ const base = process.argv[2] || 'http://localhost:8765/',
   await p.click('button:has-text("Move RDO")');
   await p.waitForTimeout(100);
   console.log('empty move error:', await p.locator('section:has(#sw-h) .invalid-msg').allInnerTexts());
-  await p.goto(base + '#roster');
-  await p.click('text=Re-plan RDOs');
+  await p.goto(base + '#settings');
+  await p.click('button:has-text("Re-plan RDOs")');
   await p.waitForTimeout(100);
   console.log('dialog focus:', await p.evaluate(() => document.activeElement.textContent.trim()));
   await p.click('text=Re-plan roster');

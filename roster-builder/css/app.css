@@ -1467,3 +1467,12 @@ a.who.vacant .nm { color: var(--danger); }
   .toolbar { gap: 12px; }
 }
 @media (max-width: 767.98px) { .brand { min-width: 44px; min-height: 44px; justify-content: center; } }
+
+.howto { margin-top: 8px; max-width: 70ch; }
+.howto summary { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; color: var(--accent); font-weight: 600; font-size: 0.875rem; list-style: none; }
+.howto summary::-webkit-details-marker, .howto-card summary::-webkit-details-marker { display: none; }
+.howto summary::before, .howto-card summary::before { content: "\F285"; font-family: bootstrap-icons; font-size: 0.75rem; transition: transform 150ms ease-out; }
+.howto[open] summary::before, .howto-card[open] summary::before { transform: rotate(90deg); }
+.howto p { color: var(--ink-2); margin: 0 0 8px; font-size: 0.875rem; }
+.howto-card summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; }
+.howto-card h2 { font-size: 1.25rem; margin: 0; }

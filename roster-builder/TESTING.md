@@ -43,7 +43,7 @@
 | Test | Evidence | Result |
 |---|---|---|
 | UI1 | `tests/ui.js`: all 5 pages at 1280 and 375, no console errors, no page-level sideways scroll. | PASS |
-| UI2 | `tests/flow.js`: Excel bar goes from "No Excel file yet" to "up to date" on download and "Changes not in Excel yet" after an edit; single-day leave; add leave; RDO move with check; empty form shows an inline error; re-plan confirm focuses Cancel; start again; reopening the downloaded file restores leave and RDO moves. | PASS |
+| UI2 | `tests/flow.js`: Excel bar goes from "No Excel file yet" to "up to date" on download and "Changes not in Excel yet" after an edit; single-day leave; add leave; RDO move with check; empty form shows an inline error; re-plan (now in Settings) confirm focuses Cancel; no pop-up messages on phones except errors; start again; reopening the downloaded file restores leave and RDO moves. | PASS |
 | UI4 | `tests/mobile.js` (iPhone 13 emulation): every step fits with no sideways scroll, every control at least 44px, the shift editor opens as a bottom sheet and closes on tap outside. | PASS |
 | UI3 | `tests/audit.js` (light, dark, 375px, reduced motion): weights 400, 500, 600; nothing under 12px; all controls at least 44px; no overflow. | PASS |
 

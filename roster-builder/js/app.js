@@ -189,6 +189,8 @@
 
   function toast(text, opts = {})
   {
+    // Phones: no pop-up messages except errors. Undo stays in the header.
+    if (window.innerWidth < 768 && !opts.bad) return;
     const t = {
       id: ++seq,
       text,
@@ -575,61 +577,6 @@
       {
         this.ui.rosterView = v;
         savePrefs();
-      },
-      replan()
-      {
-        ask(
-        {
-          title: `Re-plan shifts and RDOs for ${periodLabel(this.cfg)}?`,
-          body: 'Everyone gets 1 RDO per pay period, placed to keep cover up and avoid rotation clashes. Leave, RDO moves and single-day changes stay.',
-          confirm: 'Re-plan roster',
-          danger: false,
-          run: () =>
-          {
-            store.ui.busy = 'replan';
-            setTimeout(() =>
-            {
-              // RDOs that already have a recorded move stay where they are, so the move still applies.
-              const r0 = R.value;
-              const locked = store.cfg.swaps.map(sw =>
-              {
-                const p = store.cfg.people.find(x => x.id === sw.pid);
-                const f = p ? r0.rdoDates.get(p.id).indexOf(sw.from) : -1;
-                return f >= 0 ?
-                {
-                  pid: p.id,
-                  f,
-                  q:
-                  {
-                    ...p.plan[f]
-                  }
-                } : null;
-              }).filter(Boolean);
-              const best = E.autoPlan(store.cfg,
-              {
-                tries: 50
-              });
-              commit('Re-planned shifts and RDOs', c =>
-              {
-                c.people.forEach(p =>
-                {
-                  const q = best.people.find(x => x.id === p.id);
-                  if (q) p.plan = q.plan;
-                });
-                locked.forEach(l =>
-                {
-                  const p = c.people.find(x => x.id === l.pid);
-                  if (p)
-                  {
-                    p.plan[l.f].week = l.q.week;
-                    p.plan[l.f].day = l.q.day;
-                  }
-                });
-              });
-              store.ui.busy = null;
-            }, 30);
-          }
-        });
       },
     },
   };
@@ -1056,6 +1003,61 @@
         {
           this.saved = false;
         }, 3000);
+      },
+      replan()
+      {
+        ask(
+        {
+          title: `Re-plan shifts and RDOs for ${periodLabel(this.cfg)}?`,
+          body: 'Everyone gets 1 RDO per pay period, placed to keep cover up and avoid rotation clashes. Leave, RDO moves and single-day changes stay.',
+          confirm: 'Re-plan roster',
+          danger: false,
+          run: () =>
+          {
+            store.ui.busy = 'replan';
+            setTimeout(() =>
+            {
+              // RDOs that already have a recorded move stay where they are, so the move still applies.
+              const r0 = R.value;
+              const locked = store.cfg.swaps.map(sw =>
+              {
+                const p = store.cfg.people.find(x => x.id === sw.pid);
+                const f = p ? r0.rdoDates.get(p.id).indexOf(sw.from) : -1;
+                return f >= 0 ?
+                {
+                  pid: p.id,
+                  f,
+                  q:
+                  {
+                    ...p.plan[f]
+                  }
+                } : null;
+              }).filter(Boolean);
+              const best = E.autoPlan(store.cfg,
+              {
+                tries: 50
+              });
+              commit('Re-planned shifts and RDOs', c =>
+              {
+                c.people.forEach(p =>
+                {
+                  const q = best.people.find(x => x.id === p.id);
+                  if (q) p.plan = q.plan;
+                });
+                locked.forEach(l =>
+                {
+                  const p = c.people.find(x => x.id === l.pid);
+                  if (p)
+                  {
+                    p.plan[l.f].week = l.q.week;
+                    p.plan[l.f].day = l.q.day;
+                  }
+                });
+              });
+              store.ui.busy = null;
+            }, 30);
+          }
+        });
       },
       reset()
       {
