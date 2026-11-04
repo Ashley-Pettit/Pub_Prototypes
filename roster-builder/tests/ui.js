@@ -31,7 +31,7 @@ require('fs').mkdirSync(out,
     const errs = [];
     p.on('pageerror', e => errs.push(e.message));
     p.on('console', m => m.type() === 'error' && errs.push(m.text()));
-    for (const r of ['roster', 'team', 'leave', 'settings'])
+    for (const r of ['team', 'roster', 'leave', 'excel', 'settings'])
     {
       await p.goto(base + '#' + r,
       {

@@ -20,14 +20,16 @@ A bar at the top of every page shows whether the app matches the last Excel file
 
 The same layout as the original team roster spreadsheet: Roster, Setup and RDO sheets, live formulas, dropdowns, colour rules, and the cover and rotation checks. Values were checked against the original value for value, and every downloaded file recalculates to the numbers the app shows.
 
-## Pages
+## The four steps
 
-| Page | What it's for |
+| Step | What it's for |
 |---|---|
-| Roster | The grid with cover and rotation rows, a short list of anything to check, single-day changes, and Re-plan RDOs. |
-| Team | Names, roles, groups and shift patterns, edited in place. |
-| Leave and RDOs | Approved leave and RDO moves, with the same checks the workbook uses. |
-| Settings | Roster name, start, length, shift codes, cover minimums, rotations and RDO days. |
+| 1 Team | Names, roles, groups and shift patterns, edited in place (cards on a phone). |
+| 2 Check roster | The grid with cover and rotation rows, a short list of anything to check, single-day changes (a bottom sheet on a phone), and Re-plan RDOs. |
+| 3 Leave and RDOs | Approved leave and RDO moves, with the same checks the workbook uses. |
+| 4 Excel | Download the master copy, see whether it's up to date, and open an existing file. |
+
+Settings (gear icon) holds the roster name, start, length, shift codes, cover minimums, rotations and RDO days. On a phone the steps sit in a bottom tab bar, and every page ends with a Next button. An Excel status chip in the header shows on every page.
 
 ## How it's built
 

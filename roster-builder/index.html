@@ -21,38 +21,26 @@
 <div id="app" v-cloak>
   <header class="topbar">
     <div class="inner">
-      <button type="button" class="btn btn-quiet btn-icon menu-toggle" :aria-expanded="ui.menuOpen ? 'true' : 'false'" aria-controls="navmenu" v-tip="'Open menu'" @click="ui.menuOpen = !ui.menuOpen"><i class="bi" :class="ui.menuOpen ? 'bi-x-lg' : 'bi-list'" aria-hidden="true"></i></button>
-      <a class="brand" href="#roster"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Roster Builder</a>
-      <nav class="mainnav" aria-label="Main">
-        <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'page' : null">{{ n }}</a>
+      <a class="brand" href="#team"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Roster Builder</span></a>
+      <nav class="steps" aria-label="Steps">
+        <a v-for="([k, n, short], i) in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'step' : null"><span class="num" aria-hidden="true">{{ i + 1 }}</span>{{ n }}</a>
       </nav>
       <span class="spacer"></span>
+      <a class="xchip" :class="'xc-' + chip.cls" href="#excel" :aria-label="excelState.title + '. Go to the Excel step.'"><i class="bi" :class="chip.icon" aria-hidden="true"></i><span>{{ chip.text }}</span></a>
+      <a class="btn btn-quiet btn-icon" href="#settings" v-tip="'Settings'" :aria-current="ui.route === 'settings' ? 'page' : null"><i class="bi bi-gear" aria-hidden="true"></i></a>
       <button type="button" class="btn btn-quiet btn-icon" :disabled="!store.undo.length" v-tip="{ text: 'Undo last change', kbd: MOD + 'Z' }" @click="undo"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
     </div>
-    <nav id="navmenu" class="navmenu" v-if="ui.menuOpen" aria-label="Main">
-      <a v-for="[k, n] in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'page' : null">{{ n }}</a>
-    </nav>
   </header>
-
-  <section class="excelbar" :class="'xb-' + excelState.kind" aria-labelledby="xb-title">
-    <div class="inner">
-      <i class="bi bi-file-earmark-spreadsheet xb-icon" aria-hidden="true"></i>
-      <div class="xb-text">
-        <div class="xb-eyebrow">The Excel file is the source of truth</div>
-        <div id="xb-title" class="xb-title"><i v-if="excelState.kind === 'ok'" class="bi bi-check-circle-fill" aria-hidden="true"></i><i v-else-if="excelState.kind === 'changed'" class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>{{ excelState.title }}</div>
-        <div class="xb-sub">{{ excelState.text }}</div>
-      </div>
-      <div class="xb-actions">
-        <label class="btn btn-quiet" for="open-xlsx"><span v-if="ui.busy === 'open'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-folder2-open" aria-hidden="true"></i>Open Excel file<input id="open-xlsx" type="file" accept=".xlsx" class="visually-hidden" @change="pickFile"></label>
-        <button type="button" class="btn btn-primary" @click="saveExcel" :aria-busy="ui.busy === 'save' ? 'true' : 'false'"><span v-if="ui.busy === 'save'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-download" aria-hidden="true"></i>Download Excel</button>
-      </div>
-    </div>
-  </section>
 
   <main class="page" id="main" tabindex="-1">
     <component :is="page"></component>
   </main>
 
+  <nav class="tabbar" aria-label="Steps">
+    <a v-for="([k, n, short], i) in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'step' : null"><span class="num" aria-hidden="true">{{ i + 1 }}</span><span>{{ short }}</span><i v-if="k === 'excel' && chip.cls === 'changed'" class="dot" aria-label="Not in Excel yet"></i></a>
+  </nav>
+
+  <div v-if="pop && popP" class="pop-scrim" @click="closePop(false)"></div>
   <div v-if="pop && popP" ref="pop" class="pop" :style="popPos || { left: '-9999px', top: '0' }" role="dialog" :aria-label="v(popP) + ', ' + nice(pop.iso)" @keydown.esc.stop="closePop()">
     <div class="pop-head"><b>{{ v(popP) }}, {{ nice(pop.iso) }}</b><span class="meta">Now {{ popVal }}{{ popChanged ? ', changed for this day' : '' }}</span></div>
     <div role="menu" :aria-label="'Set ' + v(popP) + ' for ' + nice(pop.iso)">
@@ -87,10 +75,11 @@
 <div>
   <div class="page-head">
     <div>
-      <h1 tabindex="-1">Roster</h1>
-      <p class="lede">{{ cfg.title }}, {{ periodLabel(cfg) }}. Check it here, then download the Excel file for the team.</p>
+      <div class="stepnum">Step 2 of 4</div>
+      <h1 tabindex="-1">Check the roster</h1>
+      <p class="lede">{{ cfg.title }}, {{ periodLabel(cfg) }}. Tap any shift to change that day. If something needs fixing, it's listed below.</p>
     </div>
-    <div class="actions">
+    <div class="actions replan-wide">
       <button type="button" class="btn btn-quiet" @click="replan" :aria-busy="ui.busy === 'replan' ? 'true' : 'false'"><span v-if="ui.busy === 'replan'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-arrow-repeat" aria-hidden="true"></i>Re-plan RDOs</button>
     </div>
   </div>
@@ -108,20 +97,21 @@
   </section>
 
   <div class="toolbar">
-    <div class="seg" role="group" aria-label="View">
+    <button type="button" class="btn btn-quiet replan-narrow" @click="replan"><i class="bi bi-arrow-repeat" aria-hidden="true"></i>Re-plan RDOs</button>
+    <div class="seg viewtoggle" role="group" aria-label="View">
       <button type="button" :aria-pressed="ui.rosterView === 'period' ? 'true' : 'false'" @click="setView('period')">All {{ cfg.weeks }} weeks</button>
       <button type="button" :aria-pressed="ui.rosterView === 'week' ? 'true' : 'false'" @click="setView('week')">One week</button>
     </div>
-    <div v-if="ui.rosterView === 'week'" class="seg" role="tablist" aria-label="Week">
+    <div v-if="week" class="seg weekpick" role="tablist" aria-label="Week">
       <button v-for="w in cfg.weeks" :key="w" type="button" role="tab" :aria-selected="ui.week === w - 1 ? 'true' : 'false'" @click="ui.week = w - 1">Week {{ w }}</button>
     </div>
   </div>
 
   <section class="surface" aria-label="Roster grid">
     <div class="grid-wrap">
-      <table class="rgrid" :class="{ week: ui.rosterView === 'week' }">
+      <table class="rgrid" :class="{ week: week }">
         <thead>
-          <tr class="weeks" v-if="ui.rosterView === 'period'">
+          <tr class="weeks" v-if="!week">
             <th class="sticky" scope="col"><span class="visually-hidden">Person</span></th>
             <th v-for="w in cfg.weeks" :key="w" colspan="5" scope="colgroup" :class="(w - 1) % 2 === 0 ? 'pp' : 'wk'">Week {{ w }} <span class="text-3">· pay period {{ Math.floor((w - 1) / 2) + 1 }}</span></th>
           </tr>
@@ -136,7 +126,7 @@
             <td v-for="d in days" :key="d.iso" :class="[cellClass(val(p, d)), { changed: changed(p, d) }, wk(d)]">
               <button type="button" class="cell" @click="openCell($event, p, d)" :aria-label="v(p) + ', ' + nice(d.iso) + ': ' + val(p, d) + (changed(p, d) ? ', changed for this day' : '')">
                 <span>{{ val(p, d) }}</span>
-                <span v-if="ui.rosterView === 'week' && duties(p, d).length" class="duty">{{ duties(p, d).join(', ') }}</span>
+                <span v-if="week && duties(p, d).length" class="duty">{{ duties(p, d).join(', ') }}</span>
               </button>
             </td>
           </tr>
@@ -162,17 +152,30 @@
       <span><i style="background: var(--leave)"></i>Leave</span>
       <span><i class="mk-changed"></i>Changed for one day</span>
       <span><i class="mk-clash"></i>Rostered but off</span>
-      <span class="ms-auto text-3">Select a cell to change that day.</span>
+      <span class="ms-auto text-3">Tap a shift to change that day.</span>
     </div>
   </section>
+  <div class="nextstep"><span class="text-2">{{ issues.length ? 'Sort out anything listed above, then' : 'Looks good.' }} Next, add any leave or RDO moves.</span><a class="btn btn-primary" href="#leave">Next: leave and RDOs<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
 </div>
 </script>
 
 <!-- Team (Pattern 1: List, edited in place) -->
 <script type="text/x-template" id="tpl-team">
 <div>
+  <section v-if="!ui.introHidden" class="surface intro mb-3" aria-labelledby="intro-h">
+    <div>
+      <h2 id="intro-h" class="h-intro">Make the roster in 4 steps</h2>
+      <ol class="introsteps">
+        <li><b>Team.</b> Put names against roles.</li>
+        <li><b>Check the roster.</b> Shifts and RDOs are planned for you, with cover checked every day.</li>
+        <li><b>Leave and RDOs.</b> Add any approved leave or RDO moves.</li>
+        <li><b>Download Excel.</b> That file is the master copy for the team.</li>
+      </ol>
+    </div>
+    <button type="button" class="btn btn-quiet btn-icon" v-tip="'Hide these steps'" @click="ui.introHidden = true; savePref()"><i class="bi bi-x-lg" aria-hidden="true"></i></button>
+  </section>
   <div class="page-head">
-    <div><h1 tabindex="-1">Team</h1><p class="lede">Who is on the roster. Changes save as you leave each field. Leave a name blank to show the role as Vacant.</p></div>
+    <div><div class="stepnum">Step 1 of 4</div><h1 tabindex="-1">Who's on the roster</h1><p class="lede">Type each person's name next to their role. Changes save as you go. Leave a name blank to show the role as Vacant.</p></div>
     <div class="actions"><button type="button" class="btn btn-primary" @click="add('analyst')"><i class="bi bi-person-plus" aria-hidden="true"></i>Add analyst</button></div>
   </div>
   <section class="surface">
@@ -181,10 +184,10 @@
         <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Group</th><th scope="col">Shift pattern</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr></thead>
         <tbody>
           <tr v-for="p in people" :key="p.id">
-            <td><label class="visually-hidden" :for="'name-' + p.id">Name for {{ p.role }}</label><input :id="'name-' + p.id" class="form-control" :value="p.name" placeholder="Vacant" maxlength="40" autocomplete="off" @change="setField(p, 'name', $event)"></td>
-            <td><label class="visually-hidden" :for="'role-' + p.id">Role</label><input :id="'role-' + p.id" class="form-control" :class="{ 'is-invalid': errs[p.id] }" :value="p.role" maxlength="40" @blur="setField(p, 'role', $event)" @input="clearErr(p)"><div class="invalid-msg" v-if="errs[p.id]">{{ errs[p.id] }}</div></td>
-            <td><label class="visually-hidden" :for="'grp-' + p.id">Group for {{ p.role }}</label><select :id="'grp-' + p.id" class="form-select" :value="p.group" @change="setField(p, 'group', $event)"><option value="leader">Lead (no rotations)</option><option value="senior">Senior (on call)</option><option value="analyst">Analyst (front desk, seats)</option></select></td>
-            <td><label class="visually-hidden" :for="'pat-' + p.id">Shift pattern for {{ p.role }}</label><select :id="'pat-' + p.id" class="form-select" :value="p.pattern" @change="setField(p, 'pattern', $event)"><option value="alt">Swaps each pay period</option><option value="early">Always {{ cfg.shifts.early }}</option><option value="late">Always {{ cfg.shifts.late }}</option></select></td>
+            <td><label class="cell-label" :for="'name-' + p.id">Name<span class="visually-hidden"> for {{ p.role }}</span></label><input :id="'name-' + p.id" class="form-control" :value="p.name" placeholder="Vacant" maxlength="40" autocomplete="off" @change="setField(p, 'name', $event)"></td>
+            <td><label class="cell-label" :for="'role-' + p.id">Role</label><input :id="'role-' + p.id" class="form-control" :class="{ 'is-invalid': errs[p.id] }" :value="p.role" maxlength="40" @blur="setField(p, 'role', $event)" @input="clearErr(p)"><div class="invalid-msg" v-if="errs[p.id]">{{ errs[p.id] }}</div></td>
+            <td><label class="cell-label" :for="'grp-' + p.id">Group<span class="visually-hidden"> for {{ p.role }}</span></label><select :id="'grp-' + p.id" class="form-select" :value="p.group" @change="setField(p, 'group', $event)"><option value="leader">Lead (no rotations)</option><option value="senior">Senior (on call)</option><option value="analyst">Analyst (front desk, seats)</option></select></td>
+            <td><label class="cell-label" :for="'pat-' + p.id">Shift pattern<span class="visually-hidden"> for {{ p.role }}</span></label><select :id="'pat-' + p.id" class="form-select" :value="p.pattern" @change="setField(p, 'pattern', $event)"><option value="alt">Swaps each pay period</option><option value="early">Always {{ cfg.shifts.early }}</option><option value="late">Always {{ cfg.shifts.late }}</option></select></td>
             <td class="text-end"><button type="button" class="btn btn-quiet btn-icon" v-tip="'Remove ' + v(p)" @click="remove(p)"><i class="bi bi-trash3" aria-hidden="true"></i></button></td>
           </tr>
           <tr v-if="!people.length"><td colspan="5" class="p-0"><div class="empty"><h3>No one on the roster yet</h3><p>Add the people you roster so cover and rotations can be planned.</p><button type="button" class="btn btn-primary" @click="add('analyst')">Add analyst</button></div></td></tr>
@@ -193,14 +196,15 @@
     </div>
     <div class="pager"><span>{{ plural(people.length, 'person', 'people') }}</span><span class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-quiet" @click="add('senior')">Add senior</button><button type="button" class="btn btn-quiet" @click="add('leader')">Add lead</button></span></div>
   </section>
-  <p class="meta mt-3">The sample team uses made-up names. After adding people, re-plan RDOs on the Roster page.</p>
+  <p class="meta mt-3">The sample team uses made-up names. If you add or remove people, use Re-plan RDOs on the next step.</p>
+  <div class="nextstep"><span class="text-2">Team looks right? Next, check the roster.</span><a class="btn btn-primary" href="#roster">Next: check the roster<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
 </div>
 </script>
 
 <!-- Leave and RDO changes (Pattern 3: Form page with its list) -->
 <script type="text/x-template" id="tpl-leave">
 <div>
-  <div class="page-head"><div><h1 tabindex="-1">Leave and RDOs</h1><p class="lede">Record approved leave and RDO moves. They show on the roster and go into the Excel file. You can also make these changes in Excel.</p></div></div>
+  <div class="page-head"><div><div class="stepnum">Step 3 of 4</div><h1 tabindex="-1">Leave and RDO moves</h1><p class="lede">Add approved leave, or move someone's RDO to another day. Both show on the roster and go into the Excel file. Nothing to add? Skip to the next step.</p></div></div>
   <div class="two-col">
     <section class="surface" aria-labelledby="lv-h">
       <div class="section-pad"><h2 id="lv-h">Leave</h2>
@@ -239,6 +243,37 @@
       </table>
     </section>
   </div>
+  <div class="nextstep"><span class="text-2">All recorded? The last step is the Excel file.</span><a class="btn btn-primary" href="#excel">Next: download Excel<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+</div>
+</script>
+
+<!-- Excel (Pattern 2: Detail of the roster file) -->
+<script type="text/x-template" id="tpl-excel">
+<div>
+  <div class="page-head"><div><div class="stepnum">Step 4 of 4</div><h1 tabindex="-1">Download the Excel file</h1><p class="lede">The Excel file is the master copy of the roster. Share it with the team and keep it on the team drive.</p></div></div>
+  <section class="surface xstate" :class="'xs-' + excelState.kind" aria-live="polite">
+    <i class="bi xs-icon" :class="chip.icon" aria-hidden="true"></i>
+    <div class="xs-text"><div class="xs-title">{{ excelState.title }}</div><div class="text-2">{{ excelState.text }}</div><div class="meta mt-1">File name: {{ fileName }}</div></div>
+    <div class="xs-actions">
+      <button type="button" class="btn btn-primary btn-lg-touch" @click="saveExcel" :aria-busy="ui.busy === 'save' ? 'true' : 'false'"><span v-if="ui.busy === 'save'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-download" aria-hidden="true"></i>Download Excel file</button>
+    </div>
+  </section>
+  <section class="surface mt-3" aria-labelledby="how-h">
+    <div class="section-pad"><h2 id="how-h">How the Excel file works</h2></div>
+    <ol class="howlist">
+      <li><b>It's the source of truth.</b> Once downloaded, the Excel file is the roster everyone works from. This app is just a helper.</li>
+      <li><b>Small changes go straight into Excel.</b> Each shift cell has a dropdown, and RDO moves go in the table on the RDO sheet. The cover checks update as you type.</li>
+      <li><b>For bigger changes, open it here again.</b> New starters, a longer roster or re-planning RDOs: open the Excel file in this app, make the change, then download a new copy to replace the old one.</li>
+    </ol>
+  </section>
+  <section class="surface mt-3" aria-labelledby="sheets-h">
+    <div class="section-pad"><h2 id="sheets-h">What's inside</h2></div>
+    <table class="dtable"><tbody><tr v-for="[n, d] in sheets" :key="n"><th scope="row" class="sheetname">{{ n }} sheet</th><td class="text-2">{{ d }}</td></tr></tbody></table>
+  </section>
+  <section class="surface mt-3 section-pad openrow" aria-labelledby="open-h">
+    <div><h2 id="open-h">Already have the Excel file?</h2><p class="text-2 mb-0">Open it to carry on. Changes made in Excel come with it.</p></div>
+    <label class="btn btn-quiet" for="open-xlsx"><span v-if="ui.busy === 'open'" class="spinner-border spinner-border-sm" aria-hidden="true"></span><i v-else class="bi bi-folder2-open" aria-hidden="true"></i>Open Excel file<input id="open-xlsx" type="file" accept=".xlsx" class="visually-hidden" @change="pick"></label>
+  </section>
 </div>
 </script>
 

@@ -25,7 +25,7 @@ const base = process.argv[2] || 'http://localhost:8765/',
       reducedMotion: 'reduce'
     });
     const p = await ctx.newPage();
-    for (const r of ['roster', 'team', 'leave', 'settings'])
+    for (const r of ['team', 'roster', 'leave', 'excel', 'settings'])
     {
       await p.goto(base + '#' + r,
       {

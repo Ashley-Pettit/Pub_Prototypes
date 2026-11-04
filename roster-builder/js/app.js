@@ -88,7 +88,8 @@
     }
     return {
       cfg: sample(),
-      excel: null
+      excel: null,
+      fresh: true
     };
   }
   const prefs = (() =>
@@ -120,7 +121,9 @@
       pop: null,
       confirm: null,
       busy: null,
-      menuOpen: false
+      menuOpen: false,
+      introHidden: !!prefs.introHidden,
+      narrow: window.innerWidth < 768
     },
   });
   const R = computed(() => E.compute(store.cfg));
@@ -151,7 +154,8 @@
     {
       localStorage.setItem(PREF_KEY, JSON.stringify(
       {
-        rosterView: store.ui.rosterView
+        rosterView: store.ui.rosterView,
+        introHidden: store.ui.introHidden
       }));
     }
     catch (e)
@@ -207,12 +211,12 @@
   }
 
   /* ---------- routing ---------- */
-  const ROUTES = ['roster', 'team', 'leave', 'settings'];
+  const ROUTES = ['team', 'roster', 'leave', 'excel', 'settings'];
 
   function readRoute()
   {
     const r = location.hash.replace(/^#/, '');
-    store.ui.route = ROUTES.includes(r) ? r : 'roster';
+    store.ui.route = ROUTES.includes(r) ? r : (start.fresh ? 'team' : 'roster');
     store.ui.menuOpen = false;
     store.ui.pop = null;
   }
@@ -410,7 +414,46 @@
       R: () => R.value,
       issues: () => issues.value,
       E: () => E,
-      inSync: () => inSync.value
+      inSync: () => inSync.value,
+      narrow: () => window.innerWidth < 768,
+      excelState()
+      {
+        if (!store.excel) return {
+          kind: 'none',
+          title: 'No Excel file yet',
+          text: 'When the roster looks right, download it. That file becomes the master copy for the team.'
+        };
+        if (inSync.value) return {
+          kind: 'ok',
+          title: 'Excel file is up to date',
+          text: `${store.excel.name}, ${store.excel.how} ${timeOf(store.excel.at)}.`
+        };
+        return {
+          kind: 'changed',
+          title: 'Changes not in Excel yet',
+          text: `Download a new copy to replace ${store.excel.name}, so the Excel file stays the master copy.`
+        };
+      },
+      chip()
+      {
+        const k = this.excelState.kind;
+        return k === 'ok' ?
+        {
+          cls: 'ok',
+          text: 'Excel up to date',
+          icon: 'bi-check-circle-fill'
+        } : k === 'changed' ?
+        {
+          cls: 'changed',
+          text: 'Not in Excel yet',
+          icon: 'bi-exclamation-triangle-fill'
+        } :
+        {
+          cls: 'none',
+          text: 'No Excel file yet',
+          icon: 'bi-file-earmark-spreadsheet'
+        };
+      }
     },
     methods:
     {
@@ -424,6 +467,10 @@
       {
         const s = this.cfg.shifts;
         return v === s.early ? 'c-early' : v === s.late ? 'c-late' : v === 'RDO' ? 'c-rdo' : v === 'Leave' ? 'c-leave' : 'c-other';
+      },
+      savePref()
+      {
+        savePrefs();
       },
       saveExcel()
       {
@@ -440,7 +487,11 @@
     {
       days()
       {
-        return this.ui.rosterView === 'week' ? this.R.days.filter(d => d.w === this.ui.week) : this.R.days;
+        return this.week ? this.R.days.filter(d => d.w === this.ui.week) : this.R.days;
+      },
+      week()
+      {
+        return this.ui.rosterView === 'week' || this.ui.narrow;
       },
       shortDays()
       {
@@ -501,7 +552,7 @@
       },
       wk(d)
       {
-        return this.ui.rosterView === 'period' && d.i % 5 === 0 ? (d.w % 2 === 0 ? 'pp' : 'wk') : '';
+        return !this.week && d.i % 5 === 0 ? (d.w % 2 === 0 ? 'pp' : 'wk') : '';
       },
       clash(row, d)
       {
@@ -838,6 +889,36 @@
     },
   };
 
+  /* Excel: the hand-over step. The downloaded file is the master copy. */
+  const ExcelPage = {
+    template: '#tpl-excel',
+    mixins: [shared],
+    computed:
+    {
+      fileName()
+      {
+        return fileName(store.cfg);
+      },
+      sheets()
+      {
+        return [
+          ['Roster', `Everyone's shifts for ${plural(store.cfg.weeks, 'week')}, with cover, rotations and checks. Each shift cell has a dropdown.`],
+          ['Setup', 'Names, roles and the rules. Type a name next to a role and the whole roster updates.'],
+          ['RDO', 'Standard RDOs, plus a table for moving an RDO that checks each move.']
+        ];
+      }
+    },
+    methods:
+    {
+      pick(e)
+      {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (f) excel.open(f);
+      }
+    }
+  };
+
   /* Settings: one form, one Save. */
   const SettingsPage = {
     template: '#tpl-settings',
@@ -1013,6 +1094,7 @@
       RosterPage,
       TeamPage,
       LeavePage,
+      ExcelPage,
       SettingsPage
     },
     data: () => (
@@ -1027,14 +1109,15 @@
           roster: 'roster-page',
           team: 'team-page',
           leave: 'leave-page',
+          excel: 'excel-page',
           settings: 'settings-page'
         } [this.ui.route];
       },
       nav: () => [
-        ['roster', 'Roster'],
-        ['team', 'Team'],
-        ['leave', 'Leave and RDOs'],
-        ['settings', 'Settings']
+        ['team', 'Team', 'Team'],
+        ['roster', 'Check roster', 'Roster'],
+        ['leave', 'Leave and RDOs', 'Leave'],
+        ['excel', 'Download Excel', 'Excel']
       ],
       pop()
       {
@@ -1057,24 +1140,6 @@
         return this.ui.confirm;
       },
       MOD: () => MOD,
-      excelState()
-      {
-        if (!store.excel) return {
-          kind: 'none',
-          title: 'No Excel file yet',
-          text: 'When the roster looks right, download it. That file becomes the master copy for the team.'
-        };
-        if (inSync.value) return {
-          kind: 'ok',
-          title: 'Excel file is up to date',
-          text: `${store.excel.name}, ${store.excel.how} ${timeOf(store.excel.at)}.`
-        };
-        return {
-          kind: 'changed',
-          title: 'Changes not in Excel yet',
-          text: `Download a new copy to replace ${store.excel.name}, so the Excel file stays the master copy.`
-        };
-      },
     },
     watch:
     {
@@ -1182,6 +1247,7 @@
       document.addEventListener('mousedown', this.outside);
       window.addEventListener('resize', () =>
       {
+        this.ui.narrow = window.innerWidth < 768;
         if (this.ui.pop) this.closePop(false);
         hideTip();
       });
