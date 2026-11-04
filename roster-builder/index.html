@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Roster Builder</title>
+<meta name="version" content="4.0">
 <meta name="description" content="Rapid prototype: plan a fortnightly team roster with RDOs, rotations, leave and cover checks.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232552a3'/%3E%3Cg fill='%23fff'%3E%3Crect x='7' y='8' width='5' height='5' rx='1'/%3E%3Crect x='14' y='8' width='5' height='5' rx='1' opacity='.5'/%3E%3Crect x='21' y='8' width='5' height='5' rx='1'/%3E%3Crect x='7' y='15' width='5' height='5' rx='1'/%3E%3Crect x='14' y='15' width='5' height='5' rx='1'/%3E%3Crect x='21' y='15' width='5' height='5' rx='1' opacity='.5'/%3E%3Crect x='7' y='22' width='5' height='3' rx='1' opacity='.5'/%3E%3Crect x='14' y='22' width='5' height='3' rx='1'/%3E%3Crect x='21' y='22' width='5' height='3' rx='1'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -332,6 +333,7 @@
     </div>
     <div class="save-row"><button type="submit" class="btn btn-primary">Save changes</button><button type="button" class="btn btn-link-quiet" @click="reset">Discard changes</button><span v-if="saved" class="saved-note" role="status"><i class="bi bi-check2" aria-hidden="true"></i> Saved</span></div>
   </form>
+  <p class="meta mt-3">Roster Builder v4.0 (4 Nov 2026). Rapid prototype, not an endorsed tool.</p>
   <div class="danger-zone">
     <h3>Start again</h3>
     <div class="danger-row"><span class="text-2 small-2">Replace the roster in this browser with the sample team. Excel files you downloaded are not affected.</span><button type="button" class="btn btn-danger-quiet" @click="startAgain">Start again</button></div>
