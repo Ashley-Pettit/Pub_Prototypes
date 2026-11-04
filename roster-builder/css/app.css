@@ -1476,3 +1476,9 @@ a.who.vacant .nm { color: var(--danger); }
 .howto p { color: var(--ink-2); margin: 0 0 8px; font-size: 0.875rem; }
 .howto-card summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; }
 .howto-card h2 { font-size: 1.25rem; margin: 0; }
+
+@media (max-width: 767.98px) { .tabbar { grid-template-columns: repeat(3, 1fr); } }
+.setlink { display: flex; align-items: center; gap: 16px; text-decoration: none; color: var(--ink); min-height: 72px; }
+.setlink:hover { border-color: var(--accent); }
+.setlink > .bi:first-child { font-size: 1.5rem; color: var(--accent); }
+.setlink b { font-weight: 600; }

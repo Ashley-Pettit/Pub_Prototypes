@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Roster Builder</title>
-<meta name="version" content="4.1">
+<meta name="version" content="4.2">
 <meta name="description" content="Rapid prototype: plan a fortnightly team roster with RDOs, rotations, leave and cover checks.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232552a3'/%3E%3Cg fill='%23fff'%3E%3Crect x='7' y='8' width='5' height='5' rx='1'/%3E%3Crect x='14' y='8' width='5' height='5' rx='1' opacity='.5'/%3E%3Crect x='21' y='8' width='5' height='5' rx='1'/%3E%3Crect x='7' y='15' width='5' height='5' rx='1'/%3E%3Crect x='14' y='15' width='5' height='5' rx='1'/%3E%3Crect x='21' y='15' width='5' height='5' rx='1' opacity='.5'/%3E%3Crect x='7' y='22' width='5' height='3' rx='1' opacity='.5'/%3E%3Crect x='14' y='22' width='5' height='3' rx='1'/%3E%3Crect x='21' y='22' width='5' height='3' rx='1'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,13 +22,13 @@
 <div id="app" v-cloak>
   <header class="topbar">
     <div class="inner">
-      <a class="brand" href="#team"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Roster Builder</span></a>
+      <a class="brand" href="#roster"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span class="brand-name">Roster Builder</span></a>
       <nav class="steps" aria-label="Steps">
         <a v-for="([k, n, short], i) in nav" :key="k" :href="'#' + k" :aria-current="ui.route === k ? 'step' : null"><span class="num" aria-hidden="true">{{ i + 1 }}</span>{{ n }}</a>
       </nav>
       <span class="spacer"></span>
       <a class="xchip" :class="'xc-' + chip.cls" href="#excel" :aria-label="excelState.title + '. Go to the Excel step.'"><i class="bi" :class="chip.icon" aria-hidden="true"></i><span>{{ chip.text }}</span></a>
-      <a class="btn btn-quiet btn-icon" href="#settings" v-tip="'Settings'" :aria-current="ui.route === 'settings' ? 'page' : null"><i class="bi bi-gear" aria-hidden="true"></i></a>
+      <a class="btn btn-quiet btn-icon" href="#settings" v-tip="'Settings'" :aria-current="ui.route === 'settings' || ui.route === 'team' ? 'page' : null"><i class="bi bi-gear" aria-hidden="true"></i></a>
       <button type="button" class="btn btn-quiet btn-icon" :disabled="!store.undo.length" v-tip="{ text: 'Undo last change', kbd: MOD + 'Z' }" @click="undo"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
     </div>
   </header>
@@ -76,7 +76,7 @@
 <div>
   <div class="page-head">
     <div>
-      <div class="stepnum">Step 2 of 4</div>
+      <div class="stepnum">Step 1 of 3</div>
       <h1 tabindex="-1">Check the roster</h1>
       <p class="lede">{{ cfg.title }}, {{ periodLabel(cfg) }}.</p><details class="howto"><summary>How this step works</summary><p>Shifts and RDOs are planned for you and cover is checked every day. Tap any shift to change that day. Anything that needs fixing is listed above the grid. To re-plan every RDO, use Settings.</p></details>
     </div>
@@ -160,7 +160,7 @@
 <script type="text/x-template" id="tpl-team">
 <div>
   <div class="page-head">
-    <div><div class="stepnum">Step 1 of 4</div><h1 tabindex="-1">Who's on the roster</h1><p class="lede">Put names against roles.</p><details class="howto"><summary>How this step works</summary><p>Type each person's name next to their role. Changes save as you go. Leave a name blank to show the role as Vacant. If you add or remove people, re-plan RDOs in Settings.</p></details></div>
+    <div><div class="crumbs"><a href="#settings">Settings</a> › Team</div><h1 tabindex="-1">Team</h1><p class="lede">Put names against roles.</p><details class="howto"><summary>How this step works</summary><p>Type each person's name next to their role. Changes save as you go. Leave a name blank to show the role as Vacant. If you add or remove people, re-plan RDOs in Settings so everyone gets a fair RDO.</p></details></div>
     <div class="actions"><button type="button" class="btn btn-primary" @click="add('analyst')"><i class="bi bi-person-plus" aria-hidden="true"></i>Add analyst</button></div>
   </div>
   <section class="surface">
@@ -181,14 +181,14 @@
     </div>
     <div class="pager"><span>{{ plural(people.length, 'person', 'people') }}</span><span class="d-flex gap-2 flex-wrap"><button type="button" class="btn btn-quiet" @click="add('senior')">Add senior</button><button type="button" class="btn btn-quiet" @click="add('leader')">Add lead</button></span></div>
   </section>
-  <div class="nextstep"><span class="text-2">Team looks right? Next, check the roster.</span><a class="btn btn-primary" href="#roster">Next: check the roster<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
+  <div class="nextstep"><span class="text-2">Team looks right? Head back to the roster.</span><a class="btn btn-primary" href="#roster">Back to the roster<i class="bi bi-arrow-right" aria-hidden="true"></i></a></div>
 </div>
 </script>
 
 <!-- Leave and RDO changes (Pattern 3: Form page with its list) -->
 <script type="text/x-template" id="tpl-leave">
 <div>
-  <div class="page-head"><div><div class="stepnum">Step 3 of 4</div><h1 tabindex="-1">Leave and RDO moves</h1><p class="lede">Add approved leave or RDO moves, or skip this step.</p><details class="howto"><summary>How this step works</summary><p>Leave and RDO moves show on the roster and go into the Excel file. Each RDO move is checked the same way the Excel file checks it. You can also make these changes later in Excel.</p></details></div></div>
+  <div class="page-head"><div><div class="stepnum">Step 2 of 3</div><h1 tabindex="-1">Leave and RDO moves</h1><p class="lede">Add approved leave or RDO moves, or skip this step.</p><details class="howto"><summary>How this step works</summary><p>Leave and RDO moves show on the roster and go into the Excel file. Each RDO move is checked the same way the Excel file checks it. You can also make these changes later in Excel.</p></details></div></div>
   <div class="two-col">
     <section class="surface" aria-labelledby="lv-h">
       <div class="section-pad"><h2 id="lv-h">Leave</h2>
@@ -234,7 +234,7 @@
 <!-- Excel (Pattern 2: Detail of the roster file) -->
 <script type="text/x-template" id="tpl-excel">
 <div>
-  <div class="page-head"><div><div class="stepnum">Step 4 of 4</div><h1 tabindex="-1">Download the Excel file</h1><p class="lede">The Excel file is the master copy of the roster.</p><details class="howto"><summary>How this step works</summary><p>Share the file with the team and keep it on the team drive. Small changes can go straight into Excel: each shift has a dropdown and RDO moves go in the table on the RDO sheet. For bigger changes, open the file here, make the change and download a new copy to replace the old one. The file has three sheets: Roster, Setup and RDO.</p></details></div></div>
+  <div class="page-head"><div><div class="stepnum">Step 3 of 3</div><h1 tabindex="-1">Download the Excel file</h1><p class="lede">The Excel file is the master copy of the roster.</p><details class="howto"><summary>How this step works</summary><p>Share the file with the team and keep it on the team drive. Small changes can go straight into Excel: each shift has a dropdown and RDO moves go in the table on the RDO sheet. For bigger changes, open the file here, make the change and download a new copy to replace the old one. The file has three sheets: Roster, Setup and RDO.</p></details></div></div>
   <section class="surface xstate" :class="'xs-' + excelState.kind" aria-live="polite">
     <i class="bi xs-icon" :class="chip.icon" aria-hidden="true"></i>
     <div class="xs-text"><div class="xs-title">{{ excelState.title }}</div><div class="text-2">{{ excelState.text }}</div><div class="meta mt-1">File name: {{ fileName }}</div></div>
@@ -253,6 +253,7 @@
 <script type="text/x-template" id="tpl-settings">
 <div>
   <div class="page-head"><div><h1 tabindex="-1">Settings</h1><p class="lede">How this roster works. These also go into the Setup sheet of the Excel file.</p></div></div>
+  <a class="surface section setlink mb-3" href="#team"><i class="bi bi-people" aria-hidden="true"></i><span><b>Team</b><span class="text-2 d-block small-2">{{ plural(R.ro.length, 'person', 'people') }} on the roster. Add, remove or rename people and set their shift pattern.</span></span><i class="bi bi-chevron-right ms-auto" aria-hidden="true"></i></a>
   <form class="surface section" novalidate @submit.prevent="save">
     <div class="set-group"><h2>Roster</h2>
       <div class="fields two">
@@ -312,14 +313,13 @@
   <details class="surface section mt-3 howto-card">
     <summary><h2 id="how-h" class="d-inline">How Roster Builder works</h2></summary>
     <ol class="howlist ps-4 pe-0 pb-0">
-      <li><b>Team.</b> Put names against roles.</li>
       <li><b>Check the roster.</b> Shifts and RDOs are planned for you, with cover checked every day. Tap a shift to change one day.</li>
       <li><b>Leave and RDOs.</b> Add approved leave and RDO moves.</li>
       <li><b>Download Excel.</b> That file is the master copy. Share it, keep it on the team drive and make small changes straight in Excel (each shift has a dropdown). For bigger changes, open it here again and download a new copy.</li>
     </ol>
-    <p class="meta mt-2 mb-0">The Excel file has three sheets: Roster (shifts, cover, rotations and checks), Setup (names and rules) and RDO (standard RDOs and a table for moving one). The sample team uses made-up names.</p>
+    <p class="meta mt-2 mb-0">The team and rules are set up once, here in Settings. The Excel file has three sheets: Roster (shifts, cover, rotations and checks), Setup (names and rules) and RDO (standard RDOs and a table for moving one). The sample team uses made-up names.</p>
   </details>
-  <p class="meta mt-3">Roster Builder v4.1 (4 Nov 2026). Rapid prototype, not an endorsed tool.</p>
+  <p class="meta mt-3">Roster Builder v4.2 (4 Nov 2026). Rapid prototype, not an endorsed tool.</p>
   <div class="danger-zone">
     <h3>Start again</h3>
     <div class="danger-row"><span class="text-2 small-2">Replace the roster in this browser with the sample team. Excel files you downloaded are not affected.</span><button type="button" class="btn btn-danger-quiet" @click="startAgain">Start again</button></div>

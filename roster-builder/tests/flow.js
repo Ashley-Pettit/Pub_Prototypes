@@ -27,7 +27,7 @@ const base = process.argv[2] || 'http://localhost:8765/',
     waitUntil: 'networkidle'
   });
   await p.waitForTimeout(200);
-  console.log('first visit lands on:', await p.evaluate(() => location.hash || window.__roster.store.ui.route), '| chip:', await chip());
+  console.log('home screen:', await p.evaluate(() => location.hash || window.__roster.store.ui.route), '| chip:', await chip());
   await p.goto(base + '#excel');
   await p.waitForTimeout(150);
   const [d1] = await Promise.all([p.waitForEvent('download'), p.click('main .btn-primary')]);

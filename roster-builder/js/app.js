@@ -218,7 +218,7 @@
   function readRoute()
   {
     const r = location.hash.replace(/^#/, '');
-    store.ui.route = ROUTES.includes(r) ? r : (start.fresh ? 'team' : 'roster');
+    store.ui.route = ROUTES.includes(r) ? r : 'roster';
     store.ui.menuOpen = false;
     store.ui.pop = null;
   }
@@ -1116,7 +1116,6 @@
         } [this.ui.route];
       },
       nav: () => [
-        ['team', 'Team', 'Team'],
         ['roster', 'Check roster', 'Roster'],
         ['leave', 'Leave and RDOs', 'Leave'],
         ['excel', 'Download Excel', 'Excel']
