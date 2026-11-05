@@ -2,7 +2,7 @@
 
 > **Rapid prototype, not an endorsed tool.** Do not enter council data. For management review as a concept only.
 
-Live: https://ashley-pettit.github.io/Pub_Prototypes/roster-builder/
+Live: https://ashley-pettit.github.io/logan-prototypes/roster-builder/
 
 ## The idea
 
